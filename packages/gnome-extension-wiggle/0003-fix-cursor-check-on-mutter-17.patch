@@ -1,0 +1,46 @@
+From: nixos-config <nixos-config@local>
+Subject: [PATCH] fix: skip cursor-hidden check while wiggling on mutter-17
+
+On mutter-17 (GNOME 49+), MetaCursorTracker.inhibit_cursor_visibility()
+uninhibits seat unfocus, and get_sprite() returns null whenever unfocus
+is not inhibited. The extension's own cursor.hide() therefore makes
+_checkCursorHiddenByProgram() misfire mid-wiggle: it forced-unmagnifies,
+removes the pointer watch, and clears history.
+
+Skip the sprite check while isWiggling is true.
+
+Also fix the magnify() ease to pass mode: instead of transition:, which
+is not a recognized ease parameter.
+---
+diff --git a/effect.js b/effect.js
+index f35c356..fc75e71 100644
+--- a/effect.js
++++ b/effect.js
+@@ -54,7 +54,7 @@ export default class Effect extends St.Icon {
+         this.remove_all_transitions();
+         this.ease({
+             duration: this.magnifyDuration,
+-            transition: Clutter.AnimationMode.EASE_IN_QUAD,
++            mode: Clutter.AnimationMode.EASE_IN_QUAD,
+             scale_x: 1.0,
+             scale_y: 1.0,
+             pivot_point: this._pivot,
+diff --git a/extension.js b/extension.js
+index 12e21c8..42e1806 100644
+--- a/extension.js
++++ b/extension.js
+@@ -43,6 +43,14 @@ export default class WiggleExtension extends Extension {
+     }
+ 
+     _checkCursorHiddenByProgram() {
++        // While wiggling we hide the cursor ourselves. On mutter-17+
++        // (GNOME 49+) inhibiting cursor visibility uninhibits seat
++        // unfocus, which makes get_sprite() return null, so the check
++        // below would misfire, unmagnify immediately, and tear down the
++        // pointer watch mid-wiggle.
++        if (this._effect.isWiggling) {
++            return false;
++        }
+         // different program might take other methods to hide the cursor, so this check should contain more conditions
+         if (!this._effect.cursor.sprite) {
+             if (!this._isHiddenByProgram) {

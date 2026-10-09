@@ -1,0 +1,60 @@
+diff --git a/src/keynames.c b/src/keynames.c
+index a6b4639..041c6a8 100644
+--- a/src/keynames.c
++++ b/src/keynames.c
+@@ -15,16 +15,16 @@ static const KeyName KEY_NAMES[] = {
+     {KEY_TAB, "Tab"},
+     {KEY_Q, "Q"}, {KEY_W, "W"}, {KEY_E, "E"}, {KEY_R, "R"}, {KEY_T, "T"},
+     {KEY_Y, "Y"}, {KEY_U, "U"}, {KEY_I, "I"}, {KEY_O, "O"}, {KEY_P, "P"},
+-    {KEY_LEFTBRACE, "["}, {KEY_RIGHTBRACE, "]"}, {KEY_ENTER, "Enter"},
++    {KEY_LEFTBRACE, "´"}, {KEY_RIGHTBRACE, "["}, {KEY_ENTER, "Enter"},
+     {KEY_LEFTCTRL, "Ctrl"}, {KEY_RIGHTCTRL, "Ctrl"},
+     {KEY_A, "A"}, {KEY_S, "S"}, {KEY_D, "D"}, {KEY_F, "F"}, {KEY_G, "G"},
+     {KEY_H, "H"}, {KEY_J, "J"}, {KEY_K, "K"}, {KEY_L, "L"},
+-    {KEY_SEMICOLON, ";"}, {KEY_APOSTROPHE, "'"}, {KEY_GRAVE, "`"},
++    {KEY_SEMICOLON, "ç"}, {KEY_APOSTROPHE, "~"}, {KEY_GRAVE, "'"},
+     {KEY_LEFTSHIFT, "Shift"}, {KEY_RIGHTSHIFT, "Shift"},
+-    {KEY_BACKSLASH, "\\"},
++    {KEY_BACKSLASH, "]"},
+     {KEY_Z, "Z"}, {KEY_X, "X"}, {KEY_C, "C"}, {KEY_V, "V"}, {KEY_B, "B"},
+     {KEY_N, "N"}, {KEY_M, "M"}, {KEY_COMMA, ","}, {KEY_DOT, "."},
+-    {KEY_SLASH, "/"}, {KEY_KPASTERISK, "Num *"},
++    {KEY_SLASH, ";"}, {KEY_KPASTERISK, "Num *"},
+     {KEY_LEFTALT, "Alt"}, {KEY_RIGHTALT, "AltGr"},
+     {KEY_SPACE, "Space"}, {KEY_CAPSLOCK, "Caps Lock"},
+     {KEY_F1, "F1"}, {KEY_F2, "F2"}, {KEY_F3, "F3"}, {KEY_F4, "F4"},
+@@ -52,6 +52,7 @@ static const KeyName KEY_NAMES[] = {
+     {KEY_PLAYPAUSE, "Play/Pause"}, {KEY_PREVIOUSSONG, "Previous"},
+     {KEY_STOPCD, "Stop"}, {KEY_REFRESH, "Refresh"}, {KEY_EDIT, "Edit"},
+     {KEY_SCROLLUP, "Scroll Up"}, {KEY_SCROLLDOWN, "Scroll Down"},
++    {86, "\\"}, {89, "/"}
+ };
+ 
+ const char *seekey_key_name(guint code)
+@@ -118,16 +119,18 @@ const char *seekey_key_text(guint code, gboolean shifted, gboolean caps_lock)
+     case KEY_0: return shifted ? ")" : "0";
+     case KEY_MINUS: return shifted ? "_" : "-";
+     case KEY_EQUAL: return shifted ? "+" : "=";
+-    case KEY_LEFTBRACE: return shifted ? "{" : "[";
+-    case KEY_RIGHTBRACE: return shifted ? "}" : "]";
+-    case KEY_BACKSLASH: return shifted ? "|" : "\\";
+-    case KEY_SEMICOLON: return shifted ? ":" : ";";
+-    case KEY_APOSTROPHE: return shifted ? "\"" : "'";
+-    case KEY_GRAVE: return shifted ? "~" : "`";
++    case KEY_LEFTBRACE: return shifted ? "`" : "´";
++    case KEY_RIGHTBRACE: return shifted ? "{" : "[";
++    case KEY_BACKSLASH: return shifted ? "}" : "]";
++    case KEY_SEMICOLON: return shifted ? "Ç" : "ç";
++    case KEY_APOSTROPHE: return shifted ? "^" : "~";
++    case KEY_GRAVE: return shifted ? "\"" : "'";
+     case KEY_COMMA: return shifted ? "<" : ",";
+     case KEY_DOT: return shifted ? ">" : ".";
+-    case KEY_SLASH: return shifted ? "?" : "/";
++    case KEY_SLASH: return shifted ? ":" : ";";
+     case KEY_SPACE: return " ";
++    case 86: return shifted ? "|" : "\\";
++    case 89: return shifted ? "?" : "/";
+     default: return NULL;
+     }
+ }
+

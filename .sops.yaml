@@ -1,0 +1,29 @@
+keys:
+  - &lambda age1p0mx5ls6wdcxg9t3tnax3msm32zsgdx7rkekjfgnfjk6algxm5pq0v2st6
+  - &mu age19z875lcatea7peqjgkzv5twctpw754nvyl7vwk8xhd6xd7snzansxfg4a9
+  - &phi age1q29dv3kj4suz0ma3835u466h6yz7nrp8m76gak3mwv99ay58vamq8pneds
+  - &tau age1jpgpp4hlw40fe4h5h7kn7uh9pkrj4zlugnmz7rwa8fjw3xkph9zsk8nzpt
+creation_rules:
+  - path_regex: secrets/secrets\.yaml$
+    key_groups:
+      - age:
+          - *lambda
+          - *mu
+          - *phi
+          - *tau
+  - path_regex: secrets/per-host/lambda\.yaml$
+    key_groups:
+      - age:
+          - *lambda
+  - path_regex: secrets/per-host/mu\.yaml$
+    key_groups:
+      - age:
+          - *mu
+  - path_regex: secrets/per-host/phi\.yaml$
+    key_groups:
+      - age:
+          - *phi
+  - path_regex: secrets/per-host/tau\.yaml$
+    key_groups:
+      - age:
+          - *tau

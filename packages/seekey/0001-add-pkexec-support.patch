@@ -1,0 +1,1832 @@
+From 605f5388be0ecc987b1eee420080f569b6494e95 Mon Sep 17 00:00:00 2001
+From: goll <joaog.bastos@protonmail.ch>
+Date: Wed, 14 Oct 2026 11:40:04 -0300
+Subject: [PATCH] Add pkexec support
+
+---
+ Makefile                           |  22 +-
+ POLKIT.md                          | 272 +++++++++++++++++++++++++
+ README.md                          |  11 +-
+ README.zh-CN.md                    |   9 +-
+ data/dev.seekey.policy             |  31 +++
+ install.sh                         |  41 ++++
+ locale/zh_CN/LC_MESSAGES/seekey.mo | Bin 7859 -> 9422 bytes
+ po/POTFILES.in                     |   1 +
+ po/seekey.pot                      | 122 ++++++++---
+ po/zh_CN.po                        | 124 ++++++++---
+ src/config.c                       |   2 +-
+ src/input.c                        |  54 +++++
+ src/main.c                         |  31 +++
+ src/privilege.c                    | 316 +++++++++++++++++++++++++++++
+ src/privilege.h                    |  53 +++++
+ src/seekey.h                       |   5 +
+ src/tui.c                          |   2 +-
+ tests/test_main.c                  |  38 ++++
+ tests/test_privilege.c             | 101 +++++++++
+ 22 files changed, 1255 insertions(+), 77 deletions(-)
+ create mode 100644 POLKIT.md
+ create mode 100644 data/dev.seekey.policy
+ create mode 100644 src/privilege.c
+ create mode 100644 src/privilege.h
+ create mode 100644 tests/test_privilege.c
+
+diff --git a/Makefile b/Makefile
+index 0b5591a..2dab47c 100644
+--- a/Makefile
++++ b/Makefile
+@@ -30,6 +30,7 @@ BINDIR := $(PREFIX)/bin
+ DATADIR := $(PREFIX)/share/seekey
+ APPLICATIONSDIR := $(PREFIX)/share/applications
+ LOCALEDIR := $(PREFIX)/share/locale
++POLKITDIR := $(PREFIX)/share/polkit-1/actions
+ 
+ # gettext package metadata. The preprocessor defaults in src/seekey.h
+ # can be overridden at compile time via -DGETTEXT_PACKAGE / -DLOCALEDIR.
+@@ -40,7 +41,7 @@ CPPFLAGS += -DGETTEXT_PACKAGE=\"$(GETTEXT_PACKAGE)\" -DLOCALEDIR=\"$(LOCALEDIR)\
+ 
+ TARGET := seekey
+ SRC := src/main.c src/config.c src/gui.c src/fuzzel_menu.c src/style.c src/preview_session.c src/runtime_lock.c src/tui.c \
+-      src/window_state.c src/input.c src/keynames.c src/layer_shell.c
++      src/window_state.c src/input.c src/keynames.c src/layer_shell.c src/privilege.c
+ OBJ := $(SRC:.c=.o)
+ 
+ CPPFLAGS += -D_GNU_SOURCE
+@@ -61,7 +62,8 @@ TEST_CFLAGS := $(WARNINGS) -O2 -g -Isrc -Itests/vendor/unity $(TEST_DEFS) \
+                 $(shell $(PKG_CONFIG) --cflags glib-2.0 gobject-2.0 gio-2.0 gtk4 json-glib-1.0)
+ TEST_SRCS := tests/test_main.c tests/test_config.c tests/test_tui.c \
+              tests/test_keynames.c tests/test_style.c tests/test_window_state.c \
+-             tests/test_runtime_lock.c tests/test_preview_session.c tests/test_helpers.c
++             tests/test_runtime_lock.c tests/test_preview_session.c \
++             tests/test_privilege.c tests/test_helpers.c
+ TEST_LDLIBS := $(shell $(PKG_CONFIG) --libs glib-2.0 gobject-2.0 gio-2.0 json-glib-1.0 gtk4) -lm
+ 
+ .PHONY: all clean install uninstall check format pot mo
+@@ -71,7 +73,7 @@ all: $(TARGET) $(MO_FILES)
+ $(TARGET): $(OBJ)
+ 	$(CC) $(LDFLAGS) $(OBJ) -o $@ $(LDLIBS)
+ 
+-%.o: %.c src/seekey.h src/config.h src/gui.h src/style.h src/preview_session.h src/runtime_lock.h src/tui.h src/window_state.h
++%.o: %.c src/seekey.h src/config.h src/gui.h src/style.h src/preview_session.h src/runtime_lock.h src/tui.h src/window_state.h src/privilege.h
+ 	$(CC) $(CPPFLAGS) $(CFLAGS) -c $< -o $@
+ 
+ # Translation rules
+@@ -103,6 +105,8 @@ install: all
+ 	install -Dm644 seekey.ini.example $(DESTDIR)$(DATADIR)/seekey.ini.example
+ 	install -Dm644 data/dev.seekey.desktop \
+ 	  $(DESTDIR)$(APPLICATIONSDIR)/dev.seekey.desktop
++	@sed 's|@BINDIR@|$(BINDIR)|g' data/dev.seekey.policy | \
++	  install -Dm644 /dev/stdin $(DESTDIR)$(POLKITDIR)/dev.seekey.policy
+ 	@for mo in $(MO_FILES); do \
+ 	    lang=$$(echo $$mo | sed 's|^locale/\([^/]*\)/.*|\1|'); \
+ 	    install -Dm644 $$mo $(DESTDIR)$(LOCALEDIR)/$$lang/LC_MESSAGES/$(DOMAIN).mo; \
+@@ -112,6 +116,7 @@ uninstall:
+ 	rm -f $(DESTDIR)$(BINDIR)/$(TARGET)
+ 	rm -f $(DESTDIR)$(DATADIR)/seekey.ini.example
+ 	rm -f $(DESTDIR)$(APPLICATIONSDIR)/dev.seekey.desktop
++	rm -f $(DESTDIR)$(POLKITDIR)/dev.seekey.policy
+ 	@for lang in $(shell cat $(LINGUAS_FILE) 2>/dev/null); do \
+ 	    rm -f $(DESTDIR)$(LOCALEDIR)/$$lang/LC_MESSAGES/$(DOMAIN).mo; \
+ 	done
+@@ -122,16 +127,23 @@ format:
+ 	}
+ 	clang-format --style=file -i src/*.c src/*.h tests/*.c tests/*.h
+ 
+-$(TEST_BIN): $(TEST_SRCS) tests/vendor/unity/unity.c src/config.c src/style.c src/tui.c src/keynames.c src/window_state.c src/runtime_lock.c src/preview_session.c
++$(TEST_BIN): $(TEST_SRCS) tests/vendor/unity/unity.c src/config.c src/style.c src/tui.c src/keynames.c src/window_state.c src/runtime_lock.c src/preview_session.c src/privilege.c
+ 	@mkdir -p build
+ 	$(CC) $(TEST_CFLAGS) $(TEST_SRCS) tests/vendor/unity/unity.c \
+-	    src/config.c src/style.c src/tui.c src/keynames.c src/window_state.c src/runtime_lock.c src/preview_session.c \
++	    src/config.c src/style.c src/tui.c src/keynames.c src/window_state.c src/runtime_lock.c src/preview_session.c src/privilege.c \
+ 	    $(LDFLAGS) -o $@ $(TEST_LDLIBS)
+ 
+ check: $(TARGET) $(TEST_BIN)
+ 	./$(TEST_BIN)
+ 	bash -n install.sh
+ 	msgfmt --check --check-accelerators=_ -o /dev/null po/zh_CN.po
++	@sed 's|@BINDIR@|/usr/local/bin|g' data/dev.seekey.policy \
++	  | grep -q 'org.freedesktop.policykit.exec.path">/usr/local/bin/seekey<' \
++	  || { echo "polkit policy template substitution failed"; exit 1; }
++	@if command -v xmllint >/dev/null 2>&1; then \
++	    sed 's|@BINDIR@|/usr/local/bin|g' data/dev.seekey.policy \
++	      | xmllint --noout --nonet -; \
++	fi
+ 	@if command -v desktop-file-validate >/dev/null 2>&1; then \
+ 	    desktop-file-validate data/dev.seekey.desktop; \
+ 	fi
+diff --git a/POLKIT.md b/POLKIT.md
+new file mode 100644
+index 0000000..3a591c7
+--- /dev/null
++++ b/POLKIT.md
+@@ -0,0 +1,272 @@
++# Polkit / pkexec support — design & progress
++
++This file tracks the work to add properly scoped permission handling via
++`pkexec` + a polkit policy, so Seekey can read `/dev/input/event*` through the
++`input` group without requiring the user to permanently join that group and
++without ever running the GUI as root.
++
++## Goal
++
++- Add a polkit policy that authorizes running the Seekey binary through
++  `pkexec`, after which the process immediately drops back to the invoking
++  user while keeping only one extra privilege: membership in the `input`
++  group.
++- Let the GUI configuration menu run without a second authentication once the
++  app is already running — **only if that can be done without reducing
++  security** (see decision D2 below).
++
++## Design
++
++### Privilege flow
++
++```
++ seekey (as normal user, no input access)
++   │  probe: do /dev/input/event* nodes exist that are
++   │  group-readable by `input` but not openable by us?
++   ├─ no ──────────────► run as today (no prompt)
++   └─ yes ─► pkexec <abs path to seekey> --seekey-restore-env=K=V ... <args>
++                │
++                ▼
++        seekey runs as root (pkexec, env sanitized by pkexec)
++          1. strip --seekey-restore-env args from argv
++          2. resolve PKEXEC_UID → passwd entry; resolve `input` → gid
++          3. initgroups() + setgroups(+input), setgid, setuid back to
++             the invoking user  (never runs as root past this point)
++          4. only NOW apply the saved session env vars, fix
++             HOME/USER/LOGNAME, chdir to the user's home
++                │
++                ▼
++        seekey as user + supplementary group `input`
++          → reads event nodes (udev rule: GROUP=input MODE=0660)
++          → GUI/Wayland/D-Bus work because the session env was restored
++          → every child it spawns (config menu, preview child, overlay)
++            inherits the `input` group for free
++```
++
++The unprivileged parent process waits for the `pkexec` child and exits with
++its status. If authorization is cancelled or denied (`pkexec` exit 126/127,
++or pkexec dying on a signal) the parent prints a warning and **aborts with
++exit code 2** — the probe had already proven that input access is
++unreachable without the `input` group, so the fallback overlay could only
++sit in "waiting for devices or permission changes" forever (decision D7).
++Spawn-level failures (no `pkexec` in PATH, spawn error) still continue
++unprivileged, because those are environmental problems rather than a
++refusal, and the existing udev/uaccess paths keep working.
++
++### Environment restoration (needed because pkexec sanitizes the environment)
++
++Verified against the polkit 127 `pkexec` source (the version shipped on the
++dev machine): pkexec runs the target with a minimal environment — it keeps
++only `SHELL`, locale vars, `TERM`, `COLORTERM`, `PATH`, `HOME`/`USER`/`LOGNAME`
++(of *root*), `PKEXEC_UID`, `SUDO_UID/GID`, and — only with the
++`allow_gui` annotation — `DISPLAY`/`XAUTHORITY`. Notably **`WAYLAND_DISPLAY`,
++`XDG_RUNTIME_DIR`, `DBUS_SESSION_BUS_ADDRESS` and all `XDG_*` base dirs are
++dropped**, which would leave a Wayland GUI unable to start.
++
++Mechanism: before spawning `pkexec`, Seekey appends
++`--seekey-restore-env=KEY=VALUE` arguments for an **allowlist** of session
++variables. The elevated process strips these arguments from `argv` while still
++root, and applies them to the environment **only after** it has dropped back
++to the invoking user — so no attacker-controlled environment value is ever
++consumed with root privileges. The allowlist covers: `WAYLAND_*`,
++`XDG_RUNTIME_DIR`/`XDG_CONFIG_HOME`/`XDG_DATA_HOME`/`XDG_STATE_HOME`/
++`XDG_CACHE_HOME`, `XDG_CURRENT_DESKTOP`, `XDG_SESSION_TYPE`,
++`XDG_SESSION_DESKTOP`, `XDG_ACTIVATION_TOKEN`, `DBUS_SESSION_BUS_ADDRESS`,
++`DISPLAY`, `XAUTHORITY`, `GDK_BACKEND`, `GDK_RENDERING_ENVIRONMENT`, `TERM`,
++`COLORTERM`. If `XDG_RUNTIME_DIR` is still unset afterwards it is rebuilt as
++`/run/user/<uid>` when that directory exists.
++
++`allow_gui` is deliberately **not** set: it would make pkexec keep
++`DISPLAY`/`XAUTHORITY` in the *root* phase, which we do not need (the GUI is
++only touched after the drop), and the pkexec man page explicitly discourages
++it.
++
++### The polkit policy
++
++`data/dev.seekey.policy` is a template; `@BINDIR@` is substituted at install
++time so the `org.freedesktop.policykit.exec.path` annotation matches the real
++installed binary (pkexec matches the annotation against the *realpath* of the
++program and, when it matches, uses this action instead of the generic
++`org.freedesktop.policykit.exec`).
++
++polkitd only loads action files from a few fixed directories — upstream
++hardcodes `$sysconfdir/polkit-1/actions`, `/run/polkit-1/actions`,
++`/usr/local/share/polkit-1/actions` and its own datadir (no command line
++option, no environment variable; see `polkitbackendinteractiveauthority.c`)
++— and nixpkgs additionally patches in
++`/run/current-system/sw/share/polkit-1/actions`. There is no way to point
++pkexec at a policy that just sits in an arbitrary store path, so:
++
++- **Non-NixOS:** `sudo make install` / `./install.sh` already place the
++  policy under `/usr/local/share/polkit-1/actions`, which every polkitd
++  reads (D5).
++- **NixOS:** add seekey to `environment.systemPackages`. The system profile
++  aggregates `share/polkit-1/actions` from all packages, and the NixOS
++  polkit module sets `restartTriggers = [ config.system.path ]`
++  (`nixos/modules/security/polkit.nix`), so `nixos-rebuild switch`
++  restarts polkitd and it picks the policy up (fresh inotify watch too).
++  Reference this flake's package output from your config — same lock, same
++  store path — so the `exec.path` annotation also matches what
++  `nix run .#…` executes.
++- **Bare `nix run` without a system-profile install** keeps the generic
++  "Permission to run /nix/store/… as super user" dialog; that is purely a
++  packaging-path limitation, not a seekey setting.
++
++(A runtime workaround that self-installed the policy from the elevated
++process was implemented and then removed again once the system-profile
++path above was verified — see git history.)
++
++### Decisions
++
++**D1 — defaults: `allow_any=no`, `allow_inactive=auth_admin`,
++`allow_active=auth_admin`.**
++Administrator authentication is required for every elevation. No implicit
++authorization, no `yes`, no keep window. When the policy file is missing (or
++the path does not match, e.g. a build-dir binary), pkexec falls back to the
++generic `org.freedesktop.policykit.exec` action, which also requires admin
++auth — the flow degrades, it does not widen.
++
++**D2 — "no re-auth for the config menu" is achieved structurally, not with
++`auth_admin_keep`; the keep variant was omitted.**
++Once any process of the app has authenticated and dropped to
++user + `input`, everything it spawns — config menu, fuzzel session, GTK
++fallback menu, preview child, the overlay itself — is a child process that
++inherits the `input` group. No child ever calls `pkexec` again, so the
++in-app configuration menu (including its live preview) runs without any
++further prompt. The only case that prompts again is *starting a brand new,
++detached* Seekey process tree (e.g. the desktop "Open settings" action while
++the overlay was started separately) while no access is otherwise available.
++Making even that case seamless would require `auth_admin_keep` (a time-window
++during which any process of the session may re-trigger elevation without
++per-user interaction) or a custom IPC broker in the overlay. Per the task
++instructions — omit this if it cannot be done without reducing security —
++`auth_admin_keep` was considered and **omitted**: it trades a bounded but real
++security reduction for convenience in an edge case, while the requested
++in-app behaviour already works with plain `auth_admin`.
++
++**D3 — elevation is automatic, but only when it can actually help.**
++`seekey_input_group_access_would_help()` (in `src/input.c`) returns true only
++if at least one event node exists that this process cannot open, that is owned
++by group `input` with the group-read bit set, and that we are not already a
++member of. This avoids pointless authentication prompts when:
++
++- the udev/uaccess ACL already grants access (node openable),
++- there are no input devices at all (headless/VM),
++- the nodes are `root:root 0600` (adding the `input` group cannot help; the
++  existing "grant read access …" message stays correct),
++- the system has no `input` group.
++
++Elevation is never attempted for `--print-config`, `--validate-config`,
++`--init-config`, `--preview-child`, `--help`, `--version`.
++
++**D4 — `sudo seekey` keeps its legacy behaviour.** Only `pkexec` launches
++(`PKEXEC_UID` set and euid 0) trigger the drop-to-user + `input` group path.
++Running as root without `PKEXEC_UID` (the documented "quick test as root")
++is unchanged.
++
++**D5 — the policy is installed system-wide, even for `--user` installs.**
++`polkitd` only reads action files from the system data dirs
++(`/usr/local/share/polkit-1/actions`, `/usr/share/polkit-1/actions`), never
++from `~/.local/share`. `install.sh` already runs sudo for the udev rule, so
++the policy is installed with sudo in both modes; the annotation points at the
++actual `BINDIR/seekey`. Note: pkexec 127 does *not* verify root ownership of
++the target program, but older pkexec versions may reject a user-owned binary
++(`~/.local/bin/seekey`) — in that case pkexec fails and Seekey continues
++unprivileged with a warning (graceful degradation). `sudo make install`,
++AUR and Nix installs produce root/store-owned binaries and are unaffected.
++
++**D6 — translations.** The policy `<description>`/`<message>` carry an inline
++`xml:lang="zh_CN"` translation, matching the repo's convention of inline
++translations in `data/dev.seekey.desktop`.
++
++**D7 — a denied or cancelled prompt aborts the run (revised from the
++original "continue unprivileged" behaviour).** The probe only attempts
++elevation when the `input` group is provably required, so after a denial
++the overlay could never read input and would only show the permanent
++"waiting for devices or permission changes" state. `seekey_privilege_elevate`
++now returns -2 for a denial (pkexec 126/127) or for the elevated copy dying
++on a signal, and main() exits with code 2 after the explanatory message.
++Spawn-level failures keep the old continue-unprivileged behaviour: no
++pkexec binary or a spawn error is an environment problem, not a refusal,
++and the udev/uaccess fallback paths remain valid there.
++
++## Files
++
++| File | Change |
++|---|---|
++| `POLKIT.md` | this file |
++| `data/dev.seekey.policy` | new polkit policy template (`@BINDIR@` placeholder) |
++| `src/privilege.h`, `src/privilege.c` | new: pkexec drop, elevation spawn, env allowlist |
++| `src/input.c`, `src/seekey.h` | new probe `seekey_input_group_access_would_help()` |
++| `src/main.c` | drop at startup, elevation before mode dispatch |
++| `Makefile` | build `privilege.c`, install/uninstall policy (path substitution), policy validation in `check` |
++| `install.sh` | install/remove the policy (system-wide, sudo), usage text |
++| `package.nix` | `PREFIX=$out` so the annotation points into the store path |
++| `tests/test_privilege.c` | unit tests for argv stripping + env allowlist |
++| `README.md`, `README.zh-CN.md` | document the pkexec path |
++| `po/POTFILES.in`, `po/seekey.pot`, `po/zh_CN.po` | new `privilege.c` strings (zh translated) |
++
++The AUR `PKGBUILD`s need no change: `make DESTDIR=… PREFIX=/usr install`
++now installs the policy itself (annotation `/usr/bin/seekey`).
++
++## Progress
++
++- [x] Research pkexec 127 environment handling (verified against polkit source)
++- [x] Design decisions D1–D6 (above)
++- [x] `data/dev.seekey.policy`
++- [x] `src/privilege.h` / `src/privilege.c`
++- [x] Input-access probe in `src/input.c`
++- [x] Wire-up in `src/main.c`
++- [x] `Makefile` (build, install, uninstall, check)
++- [x] `install.sh`
++- [x] `package.nix`
++- [x] Unit tests
++- [x] README (en + zh-CN)
++- [x] `make`, `make check` (clang-format not installed on this machine; code
++  hand-matched to `.clang-format` — 4-space indent, brace on next line for
++  functions, ≤ 80 cols)
++- [x] Manual verification notes (below)
++- [x] Round 2: abort on denied authorization (D7); documented where polkitd
++  reads policies from (system profile on NixOS — the transient runtime
++  self-publish workaround was removed once that path was verified)
++
++## Verification notes
++
++Verified on the dev machine (polkit 127, uid 1000 `goll`, Wayland/GNOME):
++
++1. **Build/test (CI-equivalent):** `make -B all` + `make check` pass —
++   all unit tests (incl. 4 new `test_privilege` tests), `bash -n install.sh`,
++   `msgfmt --check` (0 untranslated, 0 fuzzy in `zh_CN.po`), and the new
++   policy-substitution/`xmllint` checks.
++2. **Install substitution:** `make install DESTDIR=<tmp> PREFIX=/usr/local`
++   produces `<tmp>/usr/local/share/polkit-1/actions/dev.seekey.policy`
++   with `…exec.path">/usr/local/bin/seekey<` (no `@BINDIR@` left).
++3. **`install.sh --dry-run --no-deps`:** policy install/remove lines appear
++   with the correct destination; existing udev flow untouched; `bash -n` OK.
++4. **No prompt for info modes:** with a fake `pkexec` first in `PATH`,
++   `seekey --print-config` / `--validate-config` never spawn it.
++5. **Correct elevation argv:** default mode (event nodes `root:input 0660`,
++   not a member → probe TRUE) spawns `pkexec <abs self> --seekey-restore-env=…`
++   with the allowlisted pairs (`WAYLAND_DISPLAY`, `DBUS_SESSION_BUS_ADDRESS`,
++   `XDG_RUNTIME_DIR`, …) followed by the original args; child exit status is
++   propagated to the parent.
++6. **Denial aborts (D7):** fake pkexec exiting 127 prints
++   `pkexec authorization was cancelled or denied; aborting` and seekey exits
++   with code 2 (no overlay starts); fake pkexec exiting 0 still propagates
++   exit status 0.
++7. **Drop failure is fatal, never continues as root:** under
++   `unshare -Ur` with `PKEXEC_UID=1000`, the drop path fails at
++   `initgroups()` and exits 2 with `seekey: failed to set up supplementary
++   groups: Operation not permitted`. `PKEXEC_UID` without euid 0 is a no-op.
++
++**Not verifiable on this machine** (needs a real polkit prompt / root):
++the *successful* drop sequence end-to-end (initgroups → setuid → env restore →
++GUI with `input` group). One-command live test after `sudo make install`:
++run `seekey` on a machine whose `/dev/input/event*` are `root:input 0660`,
++approve the single polkit dialog, then confirm (a) keys are visualized,
++(b) the in-app config menu opens without a second prompt, (c)
++`cat /proc/self/status | grep Groups` inside a child shows the `input` gid.
++
++**Nix:** `package.nix` now runs `make PREFIX=$out install`; `nix build` still
++pins `rev = 625c459…` in `package.nix`, so a fresh build only picks up this
++feature after that rev (or the flake input) is bumped.
+diff --git a/README.md b/README.md
+index 5205c72..a7a9079 100644
+--- a/README.md
++++ b/README.md
+@@ -62,7 +62,9 @@ Press some keys — bubbles appear at the bottom of the screen. That's it.
+ > ⚠️ **No bubbles on first run?** You need read access to
+ > `/dev/input/event*`. The easiest fix is `./install.sh`, which installs an
+ > active-session udev ACL. Systems without `uaccess` can use the explicit
+-> `--input-group` fallback. See
++> `--input-group` fallback, and when neither works Seekey asks polkit for
++> temporary `input` group access via `pkexec` (one prompt, no permanent
++> group membership). See
+ > [Troubleshooting](https://github.com/Nakanomk/Seekey/wiki/Troubleshooting).
+ 
+ Keyboard and mouse event nodes are watched at runtime. Reconnecting a USB
+@@ -99,6 +101,13 @@ build deps, builds, installs to `~/.local/bin`, and sets up input permissions:
+ ./install.sh --uninstall    # reverse it
+ ```
+ 
++Input access itself is granted through a udev/logind ACL by default, with
++`--input-group` as the permanent fallback. The installer also registers a
++polkit policy: when neither method is available, Seekey asks for a one-time
++`pkexec` authentication and runs with the `input` group for that session.
++The settings menu, live preview, and overlay it starts inherit that access
++without prompting again.
++
+ Installation also adds a Seekey desktop entry. On its first launch, choose
+ whether future application-menu launches open the settings menu or start the
+ key overlay directly. `seekey --config-gui` always opens settings.
+diff --git a/README.zh-CN.md b/README.zh-CN.md
+index 6fdee79..be9bf0e 100644
+--- a/README.zh-CN.md
++++ b/README.zh-CN.md
+@@ -49,7 +49,9 @@ make                       # 编译
+ 
+ > ⚠️ **第一次运行没有气泡？** 多半是没权限读 `/dev/input/event*`。
+ > 最简单的办法是跑 `./install.sh`，它会通过 udev 为当前本地会话配置 ACL；
+-> 不支持 `uaccess` 的系统可显式使用 `--input-group` 回退。详见
++> 不支持 `uaccess` 的系统可显式使用 `--input-group` 回退；两者都不可用时，
++> Seekey 会通过 polkit/`pkexec` 申请临时的 `input` 用户组权限（只需认证
++> 一次，不会永久加入用户组）。详见
+ > [问题排查](https://github.com/Nakanomk/Seekey/wiki/Troubleshooting)。
+ 
+ 键盘和鼠标事件节点会在运行时持续监视。重新插入 USB 键盘、切换扩展坞或更换
+@@ -85,6 +87,11 @@ Seekey 会在热插拔或权限变化后继续重试。
+ ./install.sh --uninstall    # 卸载
+ ```
+ 
++输入权限默认通过 udev/logind ACL 授予，`--input-group` 是永久回退方案。
++安装脚本还会注册一条 polkit 策略：两者都不可用时，Seekey 会请求一次
++`pkexec` 认证，以 `input` 用户组身份运行本次会话——它启动的设置菜单、
++实时预览和浮层都会直接继承该权限，不再重复认证。
++
+ 安装时还会创建 Seekey 桌面入口。第一次从应用菜单启动时，可以选择以后
+ 默认打开设置菜单，或直接启动按键浮层。`seekey --config-gui` 始终会打开设置。
+ 
+diff --git a/data/dev.seekey.policy b/data/dev.seekey.policy
+new file mode 100644
+index 0000000..932415b
+--- /dev/null
++++ b/data/dev.seekey.policy
+@@ -0,0 +1,31 @@
++<?xml version="1.0" encoding="UTF-8"?>
++<!DOCTYPE policyconfig PUBLIC
++ "-//freedesktop//DTD PolicyKit Policy Configuration 1.0//EN"
++ "http://www.freedesktop.org/standards/PolicyKit/1.0/policyconfig.dtd">
++<policyconfig>
++  <vendor>Seekey</vendor>
++  <vendor_url>https://github.com/Nakanomk/Seekey</vendor_url>
++
++  <!--
++    Authorizes `pkexec <bindir>/seekey`.  Seekey uses this only to add the
++    invoking user to the `input` group for the lifetime of one process; it
++    drops back to the invoking user immediately after startup.
++
++    The bindir placeholder is replaced with the real bindir at install
++    time, because pkexec matches the org.freedesktop.policykit.exec.path
++    annotation against the realpath of the program being executed.
++  -->
++  <action id="dev.seekey.run">
++    <description>Run Seekey with access to input devices</description>
++    <description xml:lang="zh_CN">运行 Seekey 并允许访问输入设备</description>
++    <message>Authentication is required to run Seekey with access to input devices</message>
++    <message xml:lang="zh_CN">运行 Seekey 并访问输入设备需要进行身份认证</message>
++    <icon_name>input-keyboard-symbolic</icon_name>
++    <defaults>
++      <allow_any>no</allow_any>
++      <allow_inactive>auth_admin</allow_inactive>
++      <allow_active>auth_admin</allow_active>
++    </defaults>
++    <annotate key="org.freedesktop.policykit.exec.path">@BINDIR@/seekey</annotate>
++  </action>
++</policyconfig>
+diff --git a/install.sh b/install.sh
+index 2643ca2..ba30b91 100755
+--- a/install.sh
++++ b/install.sh
+@@ -9,6 +9,8 @@
+ #   4. Install the example config and desktop application entry.
+ #   5. Install a udev rule that grants the active local session access to
+ #      /dev/input/event*; persistent `input` group access is opt-in fallback.
++#   6. Install a polkit policy so seekey can request temporary `input` group
++#      access through pkexec when no other access method works.
+ #
+ # It does NOT install autostart entries; see the wiki (Autostart page) for
+ # compositor-specific startup instructions.
+@@ -54,6 +56,8 @@ After install:
+   - Run 'seekey --config-tui' to edit settings
+   - Active local sessions get input access through a udev/logind ACL
+   - If that is unavailable, rerun with --input-group and log out/in
++  - Without either, seekey offers a one-time pkexec (polkit) prompt for
++    temporary input-group access; the policy is installed system-wide
+ EOF
+ }
+ 
+@@ -93,6 +97,10 @@ CURRENT_USER="${SUDO_USER:-${USER:-$(id -un)}}"
+ RUNNING_USER="$(id -un)"
+ UDEV_RULE_PATH="/etc/udev/rules.d/70-seekey-input.rules"
+ LEGACY_UDEV_RULE_PATH="/etc/udev/rules.d/99-seekey.rules"
++# polkitd only reads actions from the system data dirs, never ~/.local/share,
++# so the policy is installed system-wide even for --user installs.
++POLKIT_ACTIONS_DIR="/usr/local/share/polkit-1/actions"
++POLKIT_POLICY_PATH="${POLKIT_ACTIONS_DIR}/dev.seekey.policy"
+ 
+ # ---------- Logging helpers --------------------------------------------
+ 
+@@ -276,6 +284,7 @@ do_uninstall() {
+         run "${INSTALL_CMD[@]}" rm -f "${mo}"
+     done
+     if $SETUP_INPUT; then
++        remove_polkit_policy
+         remove_udev_rules
+     fi
+     ok "Uninstalled binary and data files"
+@@ -290,6 +299,11 @@ is_seekey_udev_rule() {
+     [[ -f "${path}" ]] && grep -q '^# [Ss]eekey:' "${path}"
+ }
+ 
++is_seekey_policy() {
++    local path="$1"
++    [[ -f "${path}" ]] && grep -q 'id="dev.seekey.run"' "${path}"
++}
++
+ reload_input_udev_rules() {
+     run "${ROOT_CMD[@]}" udevadm control --reload-rules
+     run "${ROOT_CMD[@]}" udevadm trigger --subsystem-match=input
+@@ -330,6 +344,32 @@ install_udev_rule() {
+     reload_input_udev_rules
+ }
+ 
++# Installs the polkit policy that lets 'pkexec <bindir>/seekey' request
++# temporary input-group access (see POLKIT.md).  The @BINDIR@ placeholder is
++# replaced with the real bindir because pkexec matches the policy annotation
++# against the realpath of the executed program.
++install_polkit_policy() {
++    require_root_tool
++    local source_path="${SCRIPT_DIR}/data/dev.seekey.policy"
++    [[ -f "${source_path}" ]] || die "Missing polkit policy: ${source_path}"
++
++    local tmp
++    tmp="$(mktemp)"
++    sed "s|@BINDIR@|${BINDIR}|g" "${source_path}" > "${tmp}"
++    log "Installing polkit policy to ${POLKIT_POLICY_PATH}"
++    run "${ROOT_CMD[@]}" install -Dm644 "${tmp}" "${POLKIT_POLICY_PATH}"
++    rm -f "${tmp}"
++}
++
++remove_polkit_policy() {
++    if ! is_seekey_policy "${POLKIT_POLICY_PATH}"; then
++        return
++    fi
++    require_root_tool
++    log "Removing Seekey polkit policy ${POLKIT_POLICY_PATH}"
++    run "${ROOT_CMD[@]}" rm -f "${POLKIT_POLICY_PATH}"
++}
++
+ user_can_read_input_event() {
+     local path="$1"
+     if [[ "${RUNNING_USER}" == "${CURRENT_USER}" ]]; then
+@@ -447,6 +487,7 @@ build_seekey
+ install_files
+ 
+ if $SETUP_INPUT; then
++    install_polkit_policy
+     install_udev_rule
+     setup_input_access
+ fi
+diff --git a/po/POTFILES.in b/po/POTFILES.in
+index 216f321..901ceed 100644
+--- a/po/POTFILES.in
++++ b/po/POTFILES.in
+@@ -9,3 +9,4 @@ src/config.c
+ src/window_state.c
+ src/input.c
+ src/keynames.c
++src/privilege.c
+diff --git a/po/seekey.pot b/po/seekey.pot
+index fc827d2..aefc595 100644
+--- a/po/seekey.pot
++++ b/po/seekey.pot
+@@ -8,7 +8,7 @@ msgid ""
+ msgstr ""
+ "Project-Id-Version: seekey 0.3.0\n"
+ "Report-Msgid-Bugs-To: https://github.com/Nakanomk/seekey/issues\n"
+-"POT-Creation-Date: 2026-09-22 20:34+0800\n"
++"POT-Creation-Date: 2026-10-14 16:26-0300\n"
+ "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+ "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+ "Language-Team: LANGUAGE <LL@li.org>\n"
+@@ -17,91 +17,91 @@ msgstr ""
+ "Content-Type: text/plain; charset=UTF-8\n"
+ "Content-Transfer-Encoding: 8bit\n"
+ 
+-#: src/main.c:540
++#: src/main.c:541
+ msgid "seekey: map fired but no GdkSurface available\n"
+ msgstr ""
+ 
+-#: src/main.c:546
++#: src/main.c:547
+ msgid "seekey: input region set to empty (click-through enabled)\n"
+ msgstr ""
+ 
+-#: src/main.c:568
++#: src/main.c:569
+ msgid "seekey: compositor unknown (no WAYLAND_DISPLAY)\n"
+ msgstr ""
+ 
+-#: src/main.c:573
++#: src/main.c:574
+ #, c-format
+ msgid "seekey: compositor %s\n"
+ msgstr ""
+ 
+-#: src/main.c:584
++#: src/main.c:585
+ msgid ""
+ "  hint: KWinFT (KDE wlroots fork) supports wlr-layer-shell; layer-shell=auto "
+ "works well."
+ msgstr ""
+ 
+-#: src/main.c:586
++#: src/main.c:587
+ msgid "  hint: Hyprland supports wlr-layer-shell; layer-shell=auto works well."
+ msgstr ""
+ 
+-#: src/main.c:587
++#: src/main.c:588
+ msgid ""
+ "  hint: layer-shell works; window is anchored to the chosen edge and follows "
+ "the focused monitor (persisted across sessions)."
+ msgstr ""
+ 
+-#: src/main.c:589
++#: src/main.c:590
+ msgid "  hint: Sway supports wlr-layer-shell; layer-shell=auto works well."
+ msgstr ""
+ 
+-#: src/main.c:590
++#: src/main.c:591
+ msgid "  hint: river supports wlr-layer-shell; layer-shell=auto works well."
+ msgstr ""
+ 
+-#: src/main.c:591
++#: src/main.c:592
+ msgid "  hint: Wayfire supports wlr-layer-shell; layer-shell=auto works well."
+ msgstr ""
+ 
+-#: src/main.c:592
++#: src/main.c:593
+ msgid "  hint: labwc supports wlr-layer-shell; layer-shell=auto works well."
+ msgstr ""
+ 
+-#: src/main.c:594
++#: src/main.c:595
+ msgid ""
+ "  hint: KWin (default KDE Plasma) does not support wlr-layer-shell.  seekey "
+ "falls back to a normal window. See README §GNOME/KDE  fallback for window "
+ "rules to pin position and raise."
+ msgstr ""
+ 
+-#: src/main.c:597
++#: src/main.c:598
+ msgid ""
+ "  hint: GNOME does not support wlr-layer-shell.  seekey falls back to a "
+ "normal window. See README §GNOME/KDE  fallback for window rules to pin "
+ "position and raise."
+ msgstr ""
+ 
+-#: src/main.c:664
++#: src/main.c:665
+ #, c-format
+ msgid "seekey: saved monitor '%s' not found, using default\n"
+ msgstr ""
+ 
+-#: src/main.c:674
++#: src/main.c:675
+ #, c-format
+ msgid "seekey: layer-shell required but unavailable: %s\n"
+ msgstr ""
+ 
+-#: src/main.c:676
++#: src/main.c:677
+ msgid ""
+ "seekey: install gtk4-layer-shell and use a compositor that supports wlr-"
+ "layer-shell.\n"
+ msgstr ""
+ 
+-#: src/main.c:683
++#: src/main.c:684
+ #, c-format
+ msgid "seekey: using fallback window: %s\n"
+ msgstr ""
+ 
+-#: src/main.c:684
++#: src/main.c:685
+ msgid ""
+ "seekey: NOTE: you are not running under a wlr-layer-shell compositor.\n"
+ "seekey:       The following settings have NO EFFECT in fallback mode:\n"
+@@ -114,47 +114,47 @@ msgid ""
+ "seekey:       See README §Compatibility model for details.\n"
+ msgstr ""
+ 
+-#: src/main.c:734 src/main.c:898 src/main.c:922 src/main.c:932 src/main.c:942
+-#: src/main.c:954 src/main.c:968 src/main.c:983
++#: src/main.c:735 src/main.c:819 src/main.c:929 src/main.c:953 src/main.c:963
++#: src/main.c:973 src/main.c:985 src/main.c:999 src/main.c:1014
+ #, c-format
+ msgid "seekey: %s\n"
+ msgstr ""
+ 
+-#: src/main.c:741 src/main.c:747
++#: src/main.c:742 src/main.c:748
+ msgid ""
+ "seekey: grant read access to /dev/input/event* or run a quick test as root.\n"
+ msgstr ""
+ 
+-#: src/main.c:746
++#: src/main.c:747
+ msgid ""
+ "seekey: no readable keyboard found; waiting for /dev/input devices or "
+ "permission changes\n"
+ msgstr ""
+ 
+-#: src/main.c:852
++#: src/main.c:864
+ #, c-format
+ msgid "seekey: config file not found: %s\n"
+ msgstr ""
+ 
+-#: src/main.c:902
++#: src/main.c:933
+ #, c-format
+ msgid "Wrote config to %s\n"
+ msgstr ""
+ 
+-#: src/main.c:918
++#: src/main.c:949
+ msgid "seekey: no config file to validate\n"
+ msgstr ""
+ 
+-#: src/main.c:926
++#: src/main.c:957
+ #, c-format
+ msgid "Config OK: %s\n"
+ msgstr ""
+ 
+-#: src/main.c:964
++#: src/main.c:995
+ msgid "seekey: overlay is already running\n"
+ msgstr ""
+ 
+-#: src/main.c:977
++#: src/main.c:1008
+ msgid ""
+ "seekey: a configuration preview is active; close the menu before starting "
+ "the overlay\n"
+@@ -323,3 +323,67 @@ msgstr ""
+ #: src/layer_shell.c:159
+ msgid "seekey: layer-shell active (anchor bottom full-width center)\n"
+ msgstr ""
++
++#: src/privilege.c:111
++msgid "invalid user id passed by pkexec"
++msgstr ""
++
++#: src/privilege.c:123
++msgid "cannot resolve the user id passed by pkexec"
++msgstr ""
++
++#: src/privilege.c:135
++msgid ""
++"the 'input' group does not exist; pkexec elevation is unavailable (an active-"
++"session udev ACL still works)"
++msgstr ""
++
++#: src/privilege.c:145
++#, c-format
++msgid "failed to set up supplementary groups: %s"
++msgstr ""
++
++#: src/privilege.c:155
++#, c-format
++msgid "failed to read supplementary groups: %s"
++msgstr ""
++
++#: src/privilege.c:170
++msgid "too many supplementary groups"
++msgstr ""
++
++#: src/privilege.c:178
++#, c-format
++msgid "failed to set supplementary groups: %s"
++msgstr ""
++
++#: src/privilege.c:186
++#, c-format
++msgid "failed to drop privileges: %s"
++msgstr ""
++
++#: src/privilege.c:193
++msgid "privilege drop verification failed"
++msgstr ""
++
++#: src/privilege.c:280
++msgid "seekey: requesting temporary input-group access via pkexec\n"
++msgstr ""
++
++#: src/privilege.c:293
++#, c-format
++msgid "seekey: pkexec failed: %s\n"
++msgstr ""
++
++#: src/privilege.c:296
++msgid "seekey: continuing without input-group access\n"
++msgstr ""
++
++#: src/privilege.c:304
++msgid "seekey: pkexec authorization was cancelled or denied; aborting\n"
++msgstr ""
++
++#: src/privilege.c:311
++#, c-format
++msgid "seekey: pkexec terminated by signal %d; aborting\n"
++msgstr ""
+diff --git a/po/zh_CN.po b/po/zh_CN.po
+index 5febd8d..efad56f 100644
+--- a/po/zh_CN.po
++++ b/po/zh_CN.po
+@@ -6,7 +6,7 @@ msgid ""
+ msgstr ""
+ "Project-Id-Version: seekey 0.3.0\n"
+ "Report-Msgid-Bugs-To: https://github.com/Nakanomk/seekey/issues\n"
+-"POT-Creation-Date: 2026-09-22 20:34+0800\n"
++"POT-Creation-Date: 2026-10-14 16:26-0300\n"
+ "PO-Revision-Date: 2026-08-03 02:10+0800\n"
+ "Last-Translator: Seekey contributors\n"
+ "Language-Team: Chinese (Simplified)\n"
+@@ -16,24 +16,24 @@ msgstr ""
+ "Content-Transfer-Encoding: 8bit\n"
+ "Plural-Forms: nplurals=1; plural=0;\n"
+ 
+-#: src/main.c:540
++#: src/main.c:541
+ msgid "seekey: map fired but no GdkSurface available\n"
+ msgstr "seekey：map 事件触发但没有可用的 GdkSurface\n"
+ 
+-#: src/main.c:546
++#: src/main.c:547
+ msgid "seekey: input region set to empty (click-through enabled)\n"
+ msgstr "seekey：input region 已设为空（点击穿透已开启）\n"
+ 
+-#: src/main.c:568
++#: src/main.c:569
+ msgid "seekey: compositor unknown (no WAYLAND_DISPLAY)\n"
+ msgstr "seekey：未检测到合成器（没有 WAYLAND_DISPLAY）\n"
+ 
+-#: src/main.c:573
++#: src/main.c:574
+ #, c-format
+ msgid "seekey: compositor %s\n"
+ msgstr "seekey：合成器 %s\n"
+ 
+-#: src/main.c:584
++#: src/main.c:585
+ msgid ""
+ "  hint: KWinFT (KDE wlroots fork) supports wlr-layer-shell; layer-shell=auto "
+ "works well."
+@@ -41,11 +41,11 @@ msgstr ""
+ "  提示：KWinFT（KDE 的 wlroots 分支）支持 wlr-layer-shell，layer-shell=auto "
+ "可正常工作。"
+ 
+-#: src/main.c:586
++#: src/main.c:587
+ msgid "  hint: Hyprland supports wlr-layer-shell; layer-shell=auto works well."
+ msgstr "  提示：Hyprland 支持 wlr-layer-shell，layer-shell=auto 可正常工作。"
+ 
+-#: src/main.c:587
++#: src/main.c:588
+ msgid ""
+ "  hint: layer-shell works; window is anchored to the chosen edge and follows "
+ "the focused monitor (persisted across sessions)."
+@@ -53,23 +53,23 @@ msgstr ""
+ "  提示：layer-shell 正常工作，窗口锚定到所选边缘，跟随聚焦的显示器（跨会话记"
+ "忆）。"
+ 
+-#: src/main.c:589
++#: src/main.c:590
+ msgid "  hint: Sway supports wlr-layer-shell; layer-shell=auto works well."
+ msgstr "  提示：Sway 支持 wlr-layer-shell，layer-shell=auto 可正常工作。"
+ 
+-#: src/main.c:590
++#: src/main.c:591
+ msgid "  hint: river supports wlr-layer-shell; layer-shell=auto works well."
+ msgstr "  提示：river 支持 wlr-layer-shell，layer-shell=auto 可正常工作。"
+ 
+-#: src/main.c:591
++#: src/main.c:592
+ msgid "  hint: Wayfire supports wlr-layer-shell; layer-shell=auto works well."
+ msgstr "  提示：Wayfire 支持 wlr-layer-shell，layer-shell=auto 可正常工作。"
+ 
+-#: src/main.c:592
++#: src/main.c:593
+ msgid "  hint: labwc supports wlr-layer-shell; layer-shell=auto works well."
+ msgstr "  提示：labwc 支持 wlr-layer-shell，layer-shell=auto 可正常工作。"
+ 
+-#: src/main.c:594
++#: src/main.c:595
+ msgid ""
+ "  hint: KWin (default KDE Plasma) does not support wlr-layer-shell.  seekey "
+ "falls back to a normal window. See README §GNOME/KDE  fallback for window "
+@@ -78,7 +78,7 @@ msgstr ""
+ "  提示：KWin（默认的 KDE Plasma）不支持 wlr-layer-shell，seekey 退回到普通窗"
+ "口模式。固定位置 / 置顶方法见 README §GNOME/KDE fallback。"
+ 
+-#: src/main.c:597
++#: src/main.c:598
+ msgid ""
+ "  hint: GNOME does not support wlr-layer-shell.  seekey falls back to a "
+ "normal window. See README §GNOME/KDE  fallback for window rules to pin "
+@@ -87,29 +87,29 @@ msgstr ""
+ "  提示：GNOME 不支持 wlr-layer-shell，seekey 退回到普通窗口模式。固定位置 / "
+ "置顶方法见 README §GNOME/KDE fallback。"
+ 
+-#: src/main.c:664
++#: src/main.c:665
+ #, c-format
+ msgid "seekey: saved monitor '%s' not found, using default\n"
+ msgstr "seekey：未找到保存的显示器 '%s'，使用默认\n"
+ 
+-#: src/main.c:674
++#: src/main.c:675
+ #, c-format
+ msgid "seekey: layer-shell required but unavailable: %s\n"
+ msgstr "seekey：需要 layer-shell 但不可用：%s\n"
+ 
+-#: src/main.c:676
++#: src/main.c:677
+ msgid ""
+ "seekey: install gtk4-layer-shell and use a compositor that supports wlr-"
+ "layer-shell.\n"
+ msgstr ""
+ "seekey：请安装 gtk4-layer-shell，并使用支持 wlr-layer-shell 的合成器。\n"
+ 
+-#: src/main.c:683
++#: src/main.c:684
+ #, c-format
+ msgid "seekey: using fallback window: %s\n"
+ msgstr "seekey：使用 fallback 窗口：%s\n"
+ 
+-#: src/main.c:684
++#: src/main.c:685
+ msgid ""
+ "seekey: NOTE: you are not running under a wlr-layer-shell compositor.\n"
+ "seekey:       The following settings have NO EFFECT in fallback mode:\n"
+@@ -129,47 +129,47 @@ msgstr ""
+ "seekey：       Sway、river），或在支持的系统上安装 gtk4-layer-shell。\n"
+ "seekey：       详见 README §Compatibility model。\n"
+ 
+-#: src/main.c:734 src/main.c:898 src/main.c:922 src/main.c:932 src/main.c:942
+-#: src/main.c:954 src/main.c:968 src/main.c:983
++#: src/main.c:735 src/main.c:819 src/main.c:929 src/main.c:953 src/main.c:963
++#: src/main.c:973 src/main.c:985 src/main.c:999 src/main.c:1014
+ #, c-format
+ msgid "seekey: %s\n"
+ msgstr "seekey：%s\n"
+ 
+-#: src/main.c:741 src/main.c:747
++#: src/main.c:742 src/main.c:748
+ msgid ""
+ "seekey: grant read access to /dev/input/event* or run a quick test as root.\n"
+ msgstr "seekey：给 /dev/input/event* 加上读权限，或者用 root 跑一次试试。\n"
+ 
+-#: src/main.c:746
++#: src/main.c:747
+ msgid ""
+ "seekey: no readable keyboard found; waiting for /dev/input devices or "
+ "permission changes\n"
+ msgstr "seekey：没有找到可读键盘；正在等待 /dev/input 设备或权限发生变化\n"
+ 
+-#: src/main.c:852
++#: src/main.c:864
+ #, c-format
+ msgid "seekey: config file not found: %s\n"
+ msgstr "seekey：找不到配置文件：%s\n"
+ 
+-#: src/main.c:902
++#: src/main.c:933
+ #, c-format
+ msgid "Wrote config to %s\n"
+ msgstr "配置已写入 %s\n"
+ 
+-#: src/main.c:918
++#: src/main.c:949
+ msgid "seekey: no config file to validate\n"
+ msgstr "seekey：没有可校验的配置文件\n"
+ 
+-#: src/main.c:926
++#: src/main.c:957
+ #, c-format
+ msgid "Config OK: %s\n"
+ msgstr "配置正确：%s\n"
+ 
+-#: src/main.c:964
++#: src/main.c:995
+ msgid "seekey: overlay is already running\n"
+ msgstr "seekey：按键浮层已经在运行\n"
+ 
+-#: src/main.c:977
++#: src/main.c:1008
+ msgid ""
+ "seekey: a configuration preview is active; close the menu before starting "
+ "the overlay\n"
+@@ -338,3 +338,69 @@ msgstr "seekey：layer-shell 已激活（锚定右下，底边距 %u，水平边
+ #: src/layer_shell.c:159
+ msgid "seekey: layer-shell active (anchor bottom full-width center)\n"
+ msgstr "seekey：layer-shell 已激活（锚定底边全宽居中）\n"
++
++#: src/privilege.c:111
++msgid "invalid user id passed by pkexec"
++msgstr "pkexec 传递的用户 ID 无效"
++
++#: src/privilege.c:123
++msgid "cannot resolve the user id passed by pkexec"
++msgstr "无法解析 pkexec 传递的用户 ID"
++
++#: src/privilege.c:135
++msgid ""
++"the 'input' group does not exist; pkexec elevation is unavailable (an active-"
++"session udev ACL still works)"
++msgstr ""
++"系统不存在 'input' 用户组，无法通过 pkexec 提权（活动会话的 udev ACL 仍然可"
++"用）"
++
++#: src/privilege.c:145
++#, c-format
++msgid "failed to set up supplementary groups: %s"
++msgstr "初始化附加用户组失败：%s"
++
++#: src/privilege.c:155
++#, c-format
++msgid "failed to read supplementary groups: %s"
++msgstr "读取附加用户组失败：%s"
++
++#: src/privilege.c:170
++msgid "too many supplementary groups"
++msgstr "附加用户组数量过多"
++
++#: src/privilege.c:178
++#, c-format
++msgid "failed to set supplementary groups: %s"
++msgstr "设置附加用户组失败：%s"
++
++#: src/privilege.c:186
++#, c-format
++msgid "failed to drop privileges: %s"
++msgstr "降权失败：%s"
++
++#: src/privilege.c:193
++msgid "privilege drop verification failed"
++msgstr "降权校验失败"
++
++#: src/privilege.c:280
++msgid "seekey: requesting temporary input-group access via pkexec\n"
++msgstr "seekey：正在通过 pkexec 申请临时的 input 用户组权限\n"
++
++#: src/privilege.c:293
++#, c-format
++msgid "seekey: pkexec failed: %s\n"
++msgstr "seekey：pkexec 失败：%s\n"
++
++#: src/privilege.c:296
++msgid "seekey: continuing without input-group access\n"
++msgstr "seekey：继续以无 input 用户组权限的方式运行\n"
++
++#: src/privilege.c:304
++msgid "seekey: pkexec authorization was cancelled or denied; aborting\n"
++msgstr "seekey：pkexec 授权被取消或拒绝，中止运行\n"
++
++#: src/privilege.c:311
++#, c-format
++msgid "seekey: pkexec terminated by signal %d; aborting\n"
++msgstr "seekey：pkexec 被信号 %d 终止，中止运行\n"
+diff --git a/src/config.c b/src/config.c
+index 3c3588d..cb57cc5 100644
+--- a/src/config.c
++++ b/src/config.c
+@@ -592,7 +592,7 @@ static gboolean seekey_config_load_impl(SeekeyConfig *config, GError **error) {
+           : "style";
+   keyfile_get_uint_range(key_file, window_width_group, "window-width", 240,
+                          3000, &config->window_width, error);
+-  keyfile_get_uint_range(key_file, window_height_group, "window-height", 80,
++  keyfile_get_uint_range(key_file, window_height_group, "window-height", 60,
+                          1000, &config->window_height, error);
+   keyfile_get_string_value(key_file, "general", "layer-shell",
+                            config->layer_shell, sizeof(config->layer_shell),
+diff --git a/src/input.c b/src/input.c
+index 26f6b96..eeb9519 100644
+--- a/src/input.c
++++ b/src/input.c
+@@ -3,11 +3,13 @@
+ 
+ #include <errno.h>
+ #include <fcntl.h>
++#include <grp.h>
+ #include <libevdev/libevdev.h>
+ #include <linux/input-event-codes.h>
+ #include <poll.h>
+ #include <string.h>
+ #include <sys/inotify.h>
++#include <sys/stat.h>
+ #include <unistd.h>
+ 
+ #define MAX_KEY_CODE KEY_MAX
+@@ -194,6 +196,58 @@ static gboolean is_event_node_name(const char *name)
+     return TRUE;
+ }
+ 
++gboolean seekey_input_group_access_would_help(void)
++{
++    char gbuf[4096];
++    struct group grp;
++    struct group *input_group = NULL;
++    if (getgrnam_r("input", &grp, gbuf, sizeof(gbuf), &input_group) != 0 ||
++        input_group == NULL) {
++        return FALSE;
++    }
++    gid_t input_gid = input_group->gr_gid;
++
++    /* Already a member? Then group membership cannot explain a read
++     * failure, so pkexec would not help either. */
++    int ngroups = getgroups(0, NULL);
++    if (ngroups > 0) {
++        gid_t *groups = g_malloc_n((gsize)ngroups, sizeof(gid_t));
++        ngroups = getgroups(ngroups, groups);
++        gboolean member = FALSE;
++        for (int i = 0; i < ngroups; i++) {
++            if (groups[i] == input_gid) {
++                member = TRUE;
++                break;
++            }
++        }
++        g_free(groups);
++        if (member) return FALSE;
++    }
++
++    GDir *dir = g_dir_open("/dev/input", 0, NULL);
++    if (dir == NULL) return FALSE;
++
++    gboolean helps = FALSE;
++    const char *name = NULL;
++    while (!helps && (name = g_dir_read_name(dir)) != NULL) {
++        if (!is_event_node_name(name)) continue;
++        char *path = g_build_filename("/dev/input", name, NULL);
++        int fd = open(path, O_RDONLY | O_NONBLOCK | O_CLOEXEC);
++        if (fd >= 0) {
++            close(fd); /* already readable — no elevation needed */
++        } else {
++            struct stat st;
++            if (stat(path, &st) == 0 && st.st_gid == input_gid &&
++                (st.st_mode & S_IRGRP)) {
++                helps = TRUE;
++            }
++        }
++        g_free(path);
++    }
++    g_dir_close(dir);
++    return helps;
++}
++
+ static gboolean device_array_has_path(GPtrArray *devices, const char *path)
+ {
+     for (guint i = 0; i < devices->len; i++) {
+diff --git a/src/main.c b/src/main.c
+index aa2a8dc..7a20b81 100644
+--- a/src/main.c
++++ b/src/main.c
+@@ -1,6 +1,7 @@
+ #include "seekey.h"
+ #include "config.h"
+ #include "gui.h"
++#include "privilege.h"
+ #include "runtime_lock.h"
+ #include "style.h"
+ #include "tui.h"
+@@ -809,6 +810,17 @@ int main(int argc, char **argv)
+     bind_textdomain_codeset(GETTEXT_PACKAGE, "UTF-8");
+     textdomain(GETTEXT_PACKAGE);
+ 
++    /* When started through pkexec, drop back to the invoking user with only
++     * the `input` group added — before anything touches user state (config
++     * paths, locks, session bus, GUI).  Fatal on failure: the process must
++     * never continue as root.  See POLKIT.md. */
++    GError *priv_error = NULL;
++    if (!seekey_privilege_drop_from_pkexec(&argc, &argv, &priv_error)) {
++        g_printerr(_("seekey: %s\n"), priv_error->message);
++        g_clear_error(&priv_error);
++        return 2;
++    }
++
+     /* Informational commands must work even when the discovered user config
+      * is absent or malformed. */
+     if (seekey_cli_handle_info(argc, argv)) {
+@@ -881,6 +893,25 @@ int main(int argc, char **argv)
+         return 2;
+     }
+ 
++    /* Modes that read /dev/input may need the `input` group.  When the
++     * event nodes are group-readable by `input` but not by this user, ask
++     * polkit to re-run this binary through pkexec (one prompt per process
++     * tree; children inherit the group, so nothing asks again — see
++     * POLKIT.md).  Returns -1 when we keep running unprivileged; a denied
++     * or cancelled authorization (-2) aborts instead of opening an overlay
++     * that can never read input. */
++    if (!state.config.preview_child && !state.config.init_config &&
++        !state.config.print_config && !state.config.validate_config &&
++        seekey_input_group_access_would_help()) {
++        int elevated_status = seekey_privilege_elevate(argc, argv);
++        if (elevated_status >= 0) {
++            return elevated_status;
++        }
++        if (elevated_status == -2) {
++            return 2;
++        }
++    }
++
+     gboolean first_desktop_launch = FALSE;
+     if (state.config.desktop_launch) {
+         SeekeyWindowState desktop_state;
+diff --git a/src/privilege.c b/src/privilege.c
+new file mode 100644
+index 0000000..17bec2f
+--- /dev/null
++++ b/src/privilege.c
+@@ -0,0 +1,316 @@
++#include "seekey.h"
++#include "privilege.h"
++
++#include <errno.h>
++#include <grp.h>
++#include <limits.h>
++#include <pwd.h>
++#include <stdlib.h>
++#include <string.h>
++#include <sys/types.h>
++#include <sys/wait.h>
++#include <unistd.h>
++
++/* Internal argument used to carry session environment values across the
++ * pkexec boundary.  pkexec runs its target with a sanitized environment
++ * (no WAYLAND_DISPLAY, no XDG_RUNTIME_DIR, no D-Bus address), which would
++ * leave the GUI unable to start.  The values are stripped from argv while
++ * still root and applied only after the process dropped back to the
++ * invoking user, so attacker-controlled input is never consumed with root
++ * privileges.  See POLKIT.md. */
++#define RESTORE_ARG_PREFIX "--seekey-restore-env="
++
++/* Environment variables that may be carried across the pkexec boundary.
++ * Anything not on this list is discarded. */
++static const char *const restore_env_keys[] = {
++    "WAYLAND_DISPLAY",
++    "WAYLAND_SOCKET",
++    "DBUS_SESSION_BUS_ADDRESS",
++    "DISPLAY",
++    "XAUTHORITY",
++    "XDG_RUNTIME_DIR",
++    "XDG_CONFIG_HOME",
++    "XDG_DATA_HOME",
++    "XDG_DATA_DIRS",
++    "XDG_STATE_HOME",
++    "XDG_CACHE_HOME",
++    "XDG_CURRENT_DESKTOP",
++    "XDG_SESSION_TYPE",
++    "XDG_SESSION_DESKTOP",
++    "XDG_ACTIVATION_TOKEN",
++    "GDK_BACKEND",
++    "GDK_RENDERING_ENVIRONMENT",
++    "TERM",
++    "COLORTERM",
++    NULL,
++};
++
++/* Set once this process went through seekey_privilege_drop_from_pkexec().
++ * Prevents any attempt to elevate again (and pkexec recursion). */
++static gboolean privilege_dropped = FALSE;
++
++gboolean seekey_privilege_elevated(void)
++{
++    return privilege_dropped;
++}
++
++gboolean seekey_privilege_env_key_allowed(const char *key)
++{
++    if (key == NULL) {
++        return FALSE;
++    }
++    for (gsize i = 0; restore_env_keys[i] != NULL; i++) {
++        if (g_strcmp0(restore_env_keys[i], key) == 0) {
++            return TRUE;
++        }
++    }
++    return FALSE;
++}
++
++GPtrArray *seekey_privilege_strip_restore_args(int *argc, char ***argv)
++{
++    GPtrArray *pairs = g_ptr_array_new_with_free_func(g_free);
++    int out = 1; /* argv[0] is never touched */
++
++    for (int i = 1; i < *argc; i++) {
++        char *arg = (*argv)[i];
++        if (g_str_has_prefix(arg, RESTORE_ARG_PREFIX)) {
++            const char *pair = arg + strlen(RESTORE_ARG_PREFIX);
++            const char *eq = strchr(pair, '=');
++            if (eq != NULL && eq != pair) {
++                g_ptr_array_add(pairs, g_strdup(pair));
++            }
++            /* Malformed entries are dropped, never parsed. */
++            continue;
++        }
++        (*argv)[out++] = arg;
++    }
++    for (int i = out; i < *argc; i++) {
++        (*argv)[i] = NULL;
++    }
++    *argc = out;
++    return pairs;
++}
++
++gboolean seekey_privilege_drop_from_pkexec(int *argc, char ***argv,
++                                           GError **error)
++{
++    const char *pkexec_uid = g_getenv("PKEXEC_UID");
++    if (geteuid() != 0 || pkexec_uid == NULL) {
++        return TRUE;
++    }
++
++    GPtrArray *pairs = seekey_privilege_strip_restore_args(argc, argv);
++
++    char *end = NULL;
++    errno = 0;
++    unsigned long uid_ul = strtoul(pkexec_uid, &end, 10);
++    if (errno != 0 || end == pkexec_uid || *end != '\0' ||
++        (unsigned long)(uid_t)uid_ul != uid_ul) {
++        g_set_error_literal(error, G_IO_ERROR, G_IO_ERROR_FAILED,
++                            _("invalid user id passed by pkexec"));
++        g_ptr_array_unref(pairs);
++        return FALSE;
++    }
++    uid_t target_uid = (uid_t)uid_ul;
++
++    char pwbuf[8192];
++    struct passwd pw;
++    struct passwd *result = NULL;
++    if (getpwuid_r(target_uid, &pw, pwbuf, sizeof(pwbuf), &result) != 0 ||
++        result == NULL) {
++        g_set_error_literal(error, G_IO_ERROR, G_IO_ERROR_FAILED,
++                            _("cannot resolve the user id passed by pkexec"));
++        g_ptr_array_unref(pairs);
++        return FALSE;
++    }
++
++    char gbuf[4096];
++    struct group grp;
++    struct group *input_group = NULL;
++    if (getgrnam_r("input", &grp, gbuf, sizeof(gbuf), &input_group) != 0 ||
++        input_group == NULL) {
++        g_set_error_literal(
++            error, G_IO_ERROR, G_IO_ERROR_FAILED,
++            _("the 'input' group does not exist; pkexec elevation is "
++              "unavailable (an active-session udev ACL still works)"));
++        g_ptr_array_unref(pairs);
++        return FALSE;
++    }
++
++    /* Build the supplementary group list: the user's regular groups plus
++     * `input`, then give up root for good. */
++    if (initgroups(pw.pw_name, pw.pw_gid) != 0) {
++        g_set_error(error, G_IO_ERROR, G_IO_ERROR_FAILED,
++                    _("failed to set up supplementary groups: %s"),
++                    g_strerror(errno));
++        g_ptr_array_unref(pairs);
++        return FALSE;
++    }
++
++    gid_t groups[NGROUPS_MAX];
++    int ngroups = getgroups(NGROUPS_MAX, groups);
++    if (ngroups < 0) {
++        g_set_error(error, G_IO_ERROR, G_IO_ERROR_FAILED,
++                    _("failed to read supplementary groups: %s"),
++                    g_strerror(errno));
++        g_ptr_array_unref(pairs);
++        return FALSE;
++    }
++    gboolean has_input = FALSE;
++    for (int i = 0; i < ngroups; i++) {
++        if (groups[i] == input_group->gr_gid) {
++            has_input = TRUE;
++            break;
++        }
++    }
++    if (!has_input) {
++        if (ngroups >= NGROUPS_MAX) {
++            g_set_error_literal(error, G_IO_ERROR, G_IO_ERROR_FAILED,
++                                _("too many supplementary groups"));
++            g_ptr_array_unref(pairs);
++            return FALSE;
++        }
++        groups[ngroups++] = input_group->gr_gid;
++    }
++    if (setgroups((size_t)ngroups, groups) != 0) {
++        g_set_error(error, G_IO_ERROR, G_IO_ERROR_FAILED,
++                    _("failed to set supplementary groups: %s"),
++                    g_strerror(errno));
++        g_ptr_array_unref(pairs);
++        return FALSE;
++    }
++
++    if (setgid(pw.pw_gid) != 0 || setuid(pw.pw_uid) != 0) {
++        g_set_error(error, G_IO_ERROR, G_IO_ERROR_FAILED,
++                    _("failed to drop privileges: %s"), g_strerror(errno));
++        g_ptr_array_unref(pairs);
++        return FALSE;
++    }
++    if (getuid() != pw.pw_uid || geteuid() != pw.pw_uid ||
++        getgid() != pw.pw_gid) {
++        g_set_error_literal(error, G_IO_ERROR, G_IO_ERROR_FAILED,
++                            _("privilege drop verification failed"));
++        g_ptr_array_unref(pairs);
++        return FALSE;
++    }
++
++    privilege_dropped = TRUE;
++
++    /* Root is gone — only now is it safe to consume the saved environment
++     * values supplied on the command line. */
++    for (guint i = 0; i < pairs->len; i++) {
++        const char *pair = g_ptr_array_index(pairs, i);
++        const char *eq = strchr(pair, '=');
++        if (eq == NULL) {
++            continue;
++        }
++        char *key = g_strndup(pair, (gsize)(eq - pair));
++        if (seekey_privilege_env_key_allowed(key)) {
++            g_setenv(key, eq + 1, TRUE);
++        }
++        g_free(key);
++    }
++    g_ptr_array_unref(pairs);
++
++    /* pkexec points HOME/USER/LOGNAME at the target user (root) and starts
++     * in that user's home directory; restore the invoking user's values. */
++    g_setenv("HOME", pw.pw_dir, TRUE);
++    g_setenv("USER", pw.pw_name, TRUE);
++    g_setenv("LOGNAME", pw.pw_name, TRUE);
++    if (pw.pw_shell != NULL && pw.pw_shell[0] != '\0') {
++        g_setenv("SHELL", pw.pw_shell, TRUE);
++    }
++
++    /* Best-effort fallback when the caller had no XDG_RUNTIME_DIR (it is
++     * the anchor for the Wayland socket and the session bus). */
++    if (g_getenv("XDG_RUNTIME_DIR") == NULL) {
++        char runtime_dir[64];
++        g_snprintf(runtime_dir, sizeof(runtime_dir), "/run/user/%lu",
++                   (unsigned long)pw.pw_uid);
++        if (g_file_test(runtime_dir, G_FILE_TEST_IS_DIR)) {
++            g_setenv("XDG_RUNTIME_DIR", runtime_dir, TRUE);
++        }
++    }
++
++    int chdir_rc = chdir(pw.pw_dir);
++    if (chdir_rc != 0) {
++        chdir_rc = chdir("/");
++    }
++    (void)chdir_rc;
++    return TRUE;
++}
++
++int seekey_privilege_elevate(int argc, char **argv)
++{
++    if (privilege_dropped || geteuid() == 0) {
++        return -1;
++    }
++
++    char *pkexec = g_find_program_in_path("pkexec");
++    if (pkexec == NULL) {
++        return -1;
++    }
++
++    char *self = g_file_read_link("/proc/self/exe", NULL);
++    if (self == NULL) {
++        self = g_find_program_in_path("seekey");
++    }
++    if (self == NULL) {
++        g_free(pkexec);
++        return -1;
++    }
++
++    GPtrArray *child_argv = g_ptr_array_new_with_free_func(g_free);
++    g_ptr_array_add(child_argv, g_strdup(pkexec));
++    g_ptr_array_add(child_argv, g_strdup(self));
++    for (gsize i = 0; restore_env_keys[i] != NULL; i++) {
++        const char *value = g_getenv(restore_env_keys[i]);
++        if (value != NULL) {
++            g_ptr_array_add(child_argv,
++                            g_strdup_printf(RESTORE_ARG_PREFIX "%s=%s",
++                                            restore_env_keys[i], value));
++        }
++    }
++    for (int i = 1; i < argc; i++) {
++        g_ptr_array_add(child_argv, g_strdup(argv[i]));
++    }
++    g_ptr_array_add(child_argv, NULL);
++
++    g_print(_("seekey: requesting temporary input-group access via "
++              "pkexec\n"));
++
++    GError *spawn_error = NULL;
++    int status = 0;
++    gboolean spawned =
++        g_spawn_sync(NULL, (char **)child_argv->pdata, NULL, 0, NULL, NULL,
++                     NULL, NULL, &status, &spawn_error);
++    g_ptr_array_unref(child_argv);
++    g_free(self);
++    g_free(pkexec);
++
++    if (!spawned) {
++        g_printerr(_("seekey: pkexec failed: %s\n"), spawn_error->message);
++        g_clear_error(&spawn_error);
++        g_printerr(
++            _("seekey: continuing without input-group access\n"));
++        return -1;
++    }
++
++    if (WIFEXITED(status)) {
++        int code = WEXITSTATUS(status);
++        /* pkexec uses 126 (dismissed) and 127 (not authorized / error). */
++        if (code == 126 || code == 127) {
++            g_printerr(_("seekey: pkexec authorization was cancelled or "
++                         "denied; aborting\n"));
++            return -2;
++        }
++        return code;
++    }
++    if (WIFSIGNALED(status)) {
++        g_printerr(_("seekey: pkexec terminated by signal %d; aborting\n"),
++                   WTERMSIG(status));
++        return -2;
++    }
++    return -1;
++}
+diff --git a/src/privilege.h b/src/privilege.h
+new file mode 100644
+index 0000000..594b86d
+--- /dev/null
++++ b/src/privilege.h
+@@ -0,0 +1,53 @@
++#pragma once
++
++#include <glib.h>
++
++/* Privilege handling for pkexec-based elevation (see POLKIT.md).
++ *
++ * Two entry points, both called from main():
++ *
++ *  - seekey_privilege_drop_from_pkexec(): runs first.  When the process was
++ *    started through pkexec (euid 0 + PKEXEC_UID), it strips the internal
++ *    --seekey-restore-env arguments, drops back to the invoking user while
++ *    adding only the `input` group, and applies the saved session
++ *    environment afterwards.  Fatal on failure — the process must never
++ *    continue as root.
++ *
++ *  - seekey_privilege_elevate(): called after argument parsing for modes
++ *    that read /dev/input.  When the input group would unlock event nodes
++ *    that are currently unreadable, it re-runs this binary under pkexec and
++ *    waits for it.  Returns the child's exit status (caller should exit
++ *    with it), -2 when authorization was denied or the elevated copy died
++ *    (caller must abort), or -1 when no elevation happened (caller
++ *    continues unprivileged).
++ */
++
++/* TRUE once this process dropped pkexec privileges (or when not launched
++ * through pkexec).  Elevation is never attempted again in that case. */
++gboolean seekey_privilege_elevated(void);
++
++/* If running under pkexec, drop back to the invoking user with the `input`
++ * group added and restore the saved session environment.  Returns FALSE
++ * with @error set when the drop fails (caller must exit).  Returns TRUE
++ * when not launched through pkexec (nothing done). */
++gboolean seekey_privilege_drop_from_pkexec(int *argc, char ***argv,
++                                           GError **error);
++
++/* Try to re-run this program through pkexec with the input group.  Callers
++ * gate on seekey_input_group_access_would_help() first (kept out of here so
++ * this file stays free of input/libevdev dependencies).  Returns -1 when no
++ * elevation happened (caller continues unprivileged), -2 when authorization
++ * was denied or the elevated copy died (caller must abort), otherwise the
++ * elevated copy's exit status. */
++int seekey_privilege_elevate(int argc, char **argv);
++
++/* Testable helpers (also used internally). */
++
++/* TRUE when @key is on the allowlist of environment variables that may be
++ * carried across the pkexec boundary via --seekey-restore-env. */
++gboolean seekey_privilege_env_key_allowed(const char *key);
++
++/* Remove all --seekey-restore-env=KEY=VALUE arguments from @argv (compact
++ * in place, keeping the NULL terminator) and return a newly allocated
++ * GPtrArray of "KEY=VALUE" strings (element free func: g_free). */
++GPtrArray *seekey_privilege_strip_restore_args(int *argc, char ***argv);
+diff --git a/src/seekey.h b/src/seekey.h
+index 6a3cac7..3f3150a 100644
+--- a/src/seekey.h
++++ b/src/seekey.h
+@@ -120,6 +120,11 @@ void seekey_input_start(SeekeyInput *input);
+ void seekey_input_stop(SeekeyInput *input);
+ void seekey_input_free(SeekeyInput *input);
+ 
++/* TRUE when at least one /dev/input/event* node exists that this process
++ * cannot read but could read as a member of the `input` group (i.e. pkexec
++ * elevation would actually unlock input access). */
++gboolean seekey_input_group_access_would_help(void);
++
+ const char *seekey_key_name(guint code);
+ const char *seekey_key_text(guint code, gboolean shifted, gboolean caps_lock);
+ const char *seekey_typing_display_text(const SeekeyConfig *config,
+diff --git a/src/tui.c b/src/tui.c
+index a02bb02..3966189 100644
+--- a/src/tui.c
++++ b/src/tui.c
+@@ -431,7 +431,7 @@ void tui_build_fields(TuiField *out, size_t *out_count, SeekeyConfig *config)
+     UINT_FIELD(TUI_GROUP_LAYOUT, "window-width", "Fallback window width (non-layer-shell).",
+                "integer 240..3000", window_width, 240, 3000, 20);
+     UINT_FIELD(TUI_GROUP_LAYOUT, "window-height", "Fallback window height (non-layer-shell).",
+-               "integer 80..1000", window_height, 80, 1000, 10);
++               "integer 60..1000", window_height, 60, 1000, 10);
+ 
+     /* --- Appearance: colors, shadow, font --- */
+     UINT_FIELD(TUI_GROUP_APPEARANCE, "key-font-px", "Bubble font size.",
+diff --git a/tests/test_main.c b/tests/test_main.c
+index e89f24f..2417af1 100644
+--- a/tests/test_main.c
++++ b/tests/test_main.c
+@@ -1,6 +1,8 @@
+ #include "unity.h"
+ #include "test_helpers.h"
+ 
++#include <glib/gstdio.h>
++
+ extern int run_config_tests(void);
+ extern int run_tui_tests(void);
+ extern int run_keynames_tests(void);
+@@ -8,6 +10,39 @@ extern int run_style_tests(void);
+ extern int run_window_state_tests(void);
+ extern int run_runtime_lock_tests(void);
+ extern int run_preview_session_tests(void);
++extern int run_privilege_tests(void);
++
++static char *g_runtime_dir = NULL;
++
++static void isolate_runtime_dir(void)
++{
++    GError *err = NULL;
++    g_runtime_dir = g_dir_make_tmp("seekey-test-runtime-XXXXXX", &err);
++    if (g_runtime_dir == NULL) {
++        g_error("isolate_runtime_dir failed: %s", err->message);
++    }
++    g_setenv("XDG_RUNTIME_DIR", g_runtime_dir, TRUE);
++}
++
++static void cleanup_runtime_dir(void)
++{
++    if (g_runtime_dir == NULL) {
++        return;
++    }
++    GDir *dir = g_dir_open(g_runtime_dir, 0, NULL);
++    if (dir != NULL) {
++        const char *name;
++        while ((name = g_dir_read_name(dir)) != NULL) {
++            char *path = g_build_filename(g_runtime_dir, name, NULL);
++            g_unlink(path);
++            g_free(path);
++        }
++        g_dir_close(dir);
++    }
++    g_rmdir(g_runtime_dir);
++    g_free(g_runtime_dir);
++    g_runtime_dir = NULL;
++}
+ 
+ void setUp(void)
+ {
+@@ -22,6 +57,7 @@ int main(int argc, char **argv)
+ {
+     (void)argc;
+     (void)argv;
++    isolate_runtime_dir();
+     int failures = 0;
+     failures += run_config_tests();
+     failures += run_tui_tests();
+@@ -30,6 +66,8 @@ int main(int argc, char **argv)
+     failures += run_window_state_tests();
+     failures += run_runtime_lock_tests();
+     failures += run_preview_session_tests();
++    failures += run_privilege_tests();
+     test_cleanup();
++    cleanup_runtime_dir();
+     return failures;
+ }
+diff --git a/tests/test_privilege.c b/tests/test_privilege.c
+new file mode 100644
+index 0000000..86e9145
+--- /dev/null
++++ b/tests/test_privilege.c
+@@ -0,0 +1,101 @@
++#include "unity.h"
++
++#include "privilege.h"
++
++#include <glib.h>
++#include <string.h>
++
++static void test_env_key_allowlist(void) {
++  TEST_ASSERT_TRUE(seekey_privilege_env_key_allowed("WAYLAND_DISPLAY"));
++  TEST_ASSERT_TRUE(seekey_privilege_env_key_allowed("XDG_RUNTIME_DIR"));
++  TEST_ASSERT_TRUE(
++      seekey_privilege_env_key_allowed("DBUS_SESSION_BUS_ADDRESS"));
++  TEST_ASSERT_TRUE(seekey_privilege_env_key_allowed("XDG_CONFIG_HOME"));
++  TEST_ASSERT_TRUE(seekey_privilege_env_key_allowed("TERM"));
++
++  TEST_ASSERT_FALSE(seekey_privilege_env_key_allowed("LD_PRELOAD"));
++  TEST_ASSERT_FALSE(seekey_privilege_env_key_allowed("LD_LIBRARY_PATH"));
++  TEST_ASSERT_FALSE(seekey_privilege_env_key_allowed("PATH"));
++  TEST_ASSERT_FALSE(seekey_privilege_env_key_allowed("HOME"));
++  TEST_ASSERT_FALSE(seekey_privilege_env_key_allowed("PKEXEC_UID"));
++  TEST_ASSERT_FALSE(seekey_privilege_env_key_allowed(NULL));
++}
++
++static void test_strip_restore_args(void) {
++  char arg0[] = "seekey";
++  char arg1[] = "--seekey-restore-env=WAYLAND_DISPLAY=wayland-0";
++  char arg2[] = "--config-gui";
++  char arg3[] =
++      "--seekey-restore-env=DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus";
++  char arg4[] = "--duration";
++  char arg5[] = "500";
++  char *argv_storage[] = {arg0, arg1, arg2, arg3, arg4, arg5};
++  char **argv = argv_storage;
++  int argc = 6;
++
++  GPtrArray *pairs = seekey_privilege_strip_restore_args(&argc, &argv);
++  TEST_ASSERT_NOT_NULL(pairs);
++
++  /* Restore args are gone, everything else keeps its order. */
++  TEST_ASSERT_EQUAL_INT(4, argc);
++  TEST_ASSERT_EQUAL_STRING("seekey", argv[0]);
++  TEST_ASSERT_EQUAL_STRING("--config-gui", argv[1]);
++  TEST_ASSERT_EQUAL_STRING("--duration", argv[2]);
++  TEST_ASSERT_EQUAL_STRING("500", argv[3]);
++  TEST_ASSERT_NULL(argv[4]);
++
++  /* Values keep embedded '=' (e.g. D-Bus addresses). */
++  TEST_ASSERT_EQUAL_UINT(2, pairs->len);
++  TEST_ASSERT_EQUAL_STRING("WAYLAND_DISPLAY=wayland-0",
++                           (char *)g_ptr_array_index(pairs, 0));
++  TEST_ASSERT_EQUAL_STRING(
++      "DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus",
++      (char *)g_ptr_array_index(pairs, 1));
++
++  g_ptr_array_unref(pairs);
++}
++
++static void test_strip_restore_args_skips_malformed(void) {
++  char arg0[] = "seekey";
++  char arg1[] = "--seekey-restore-env=";
++  char arg2[] = "--seekey-restore-env=NOEQUALS";
++  char arg3[] = "--debug-input";
++  char *argv_storage[] = {arg0, arg1, arg2, arg3};
++  char **argv = argv_storage;
++  int argc = 4;
++
++  GPtrArray *pairs = seekey_privilege_strip_restore_args(&argc, &argv);
++
++  /* Malformed entries are dropped rather than left for the option parser,
++   * and no pair is collected from them. */
++  TEST_ASSERT_EQUAL_INT(2, argc);
++  TEST_ASSERT_EQUAL_STRING("seekey", argv[0]);
++  TEST_ASSERT_EQUAL_STRING("--debug-input", argv[1]);
++  TEST_ASSERT_NULL(argv[2]);
++  TEST_ASSERT_EQUAL_UINT(0, pairs->len);
++
++  g_ptr_array_unref(pairs);
++}
++
++static void test_strip_restore_args_without_matches(void) {
++  char arg0[] = "seekey";
++  char arg1[] = "--print-config";
++  char *argv_storage[] = {arg0, arg1};
++  char **argv = argv_storage;
++  int argc = 2;
++
++  GPtrArray *pairs = seekey_privilege_strip_restore_args(&argc, &argv);
++  TEST_ASSERT_EQUAL_INT(2, argc);
++  TEST_ASSERT_EQUAL_STRING("--print-config", argv[1]);
++  TEST_ASSERT_EQUAL_UINT(0, pairs->len);
++  g_ptr_array_unref(pairs);
++}
++
++int run_privilege_tests(void) {
++  UNITY_BEGIN();
++  RUN_TEST(test_env_key_allowlist);
++  RUN_TEST(test_strip_restore_args);
++  RUN_TEST(test_strip_restore_args_skips_malformed);
++  RUN_TEST(test_strip_restore_args_without_matches);
++  return UNITY_END();
++}
+-- 
+2.55.0
+

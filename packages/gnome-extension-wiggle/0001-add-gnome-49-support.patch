@@ -1,0 +1,87 @@
+From 6e6b1003da84f0c4e5b2c66f68fea5d020dd4acd Mon Sep 17 00:00:00 2001
+From: Alexey Makhmutov <makhmutov@gmail.com>
+Date: Tue, 23 Sep 2025 22:32:36 +0300
+Subject: [PATCH] Add support for GNOME 46-49
+
+---
+ cursor.js     | 24 ++++++++++++++++++++---
+ metadata.json |  3 ++-
+ 2 files changed, 22 insertions(+), 5 deletions(-)
+
+diff --git a/cursor.js b/cursor.js
+index b0bb0a1..a40cc0c 100644
+--- a/cursor.js
++++ b/cursor.js
+@@ -1,10 +1,16 @@
+ 'use strict';
+ 
+ import Clutter from 'gi://Clutter';
++import * as Config from 'resource:///org/gnome/shell/misc/config.js';
++import Meta from 'gi://Meta';
+ 
+ export default class Cursor {
+     constructor() {
+-        this._tracker = global.backend.get_cursor_tracker(global.display);
++        if (Config.PACKAGE_VERSION < 48) {
++            this._tracker = Meta.CursorTracker.get_for_display(global.display);
++        } else {
++            this._tracker = global.backend.get_cursor_tracker();
++        }
+     }
+ 
+     get hot() {
+@@ -15,6 +21,16 @@ export default class Cursor {
+         return this._tracker.get_sprite();
+     }
+ 
++    controlCursorVisibility(showCursor) {
++        if (Config.PACKAGE_VERSION < 49) {
++            this._tracker.set_pointer_visible(showCursor);
++        } else if (showCursor) {
++            this._tracker.uninhibit_cursor_visibility();
++        } else {
++            this._tracker.inhibit_cursor_visibility();
++        }
++    }
++
+     show() {
+         const seat = Clutter.get_default_backend().get_default_seat();
+ 
+@@ -23,7 +39,7 @@ export default class Cursor {
+         }
+ 
+         this._tracker.disconnectObject(this);
+-        this._tracker.set_pointer_visible(true);
++        this.controlCursorVisibility(true);
+     }
+ 
+     hide() {
+@@ -33,12 +49,12 @@ export default class Cursor {
+             seat.inhibit_unfocus();
+         }
+ 
+-        this._tracker.set_pointer_visible(false);
++        this.controlCursorVisibility(false);
+         this._tracker.disconnectObject(this);
+         this._tracker.connectObject(
+             'visibility-changed', () => {
+                 if (this._tracker.get_pointer_visible()) {
+-                    this._tracker.set_pointer_visible(false);
++                    this.controlCursorVisibility(false);
+                 }
+             },
+             this
+diff --git a/metadata.json b/metadata.json
+index 50fff44..3a12e8d 100644
+--- a/metadata.json
++++ b/metadata.json
+@@ -4,7 +4,8 @@
+   "shell-version": [
+     "46",
+     "47",
+-    "48"
++    "48",
++    "49"
+   ],
+   "url": "https://github.com/mechtifs/wiggle",
+   "uuid": "wiggle@mechtifs",

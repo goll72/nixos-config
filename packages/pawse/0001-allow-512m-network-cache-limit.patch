@@ -1,0 +1,79 @@
+From 6c8833e14ef5e39e537dc3fd5a2be7b83532ecb3 Mon Sep 17 00:00:00 2001
+From: Goll <goll@users.noreply.github.com>
+Date: Thu, 15 Oct 2026 17:28:16 -0300
+Subject: [PATCH] Allow a 512 MB network cache limit
+
+The cache-limit picker starts at 1 GB, the smallest whole-GB choice. The
+setting is stored in whole GB, so a half-gigabyte option cannot be a
+positive integer; reuse the previously-invalid value 0 as a sentinel for
+512 MB and render the label from the corresponding byte count.
+
+0 was never a valid stored value (the old code clamped the minimum to
+1 GB), so existing configs keep their meaning.
+---
+ crates/pawse/src/cache_settings.rs |  9 +++++++--
+ crates/pawse/src/settings_store.rs | 14 ++++++++++++--
+ 2 files changed, 19 insertions(+), 4 deletions(-)
+
+diff --git a/crates/pawse/src/cache_settings.rs b/crates/pawse/src/cache_settings.rs
+index 930cd08..33c8c69 100644
+--- a/crates/pawse/src/cache_settings.rs
++++ b/crates/pawse/src/cache_settings.rs
+@@ -13,7 +13,7 @@ use crate::library_sources::LibrarySources;
+ use crate::localization::tr;
+ use crate::services::Services;
+ use crate::settings_store::{
+-    NETWORK_CACHE_CHOICES_GB, SettingsStore, UNLIMITED_CACHE_GB, notify_save_error,
++    HALF_GB_CACHE_GB, NETWORK_CACHE_CHOICES_GB, SettingsStore, UNLIMITED_CACHE_GB, notify_save_error,
+ };
+ use crate::theme_colors::Colors;
+ 
+@@ -39,7 +39,12 @@ pub fn cache_group(sources: Entity<LibrarySources>) -> SettingGroup {
+             if gb == UNLIMITED_CACHE_GB {
+                 tr().cache_unlimited.clone()
+             } else {
+-                tr().size(u64::from(gb) * 1024 * 1024 * 1024).into()
++                let bytes = if gb == HALF_GB_CACHE_GB {
++                    512 * 1024 * 1024
++                } else {
++                    u64::from(gb) * 1024 * 1024 * 1024
++                };
++                tr().size(bytes).into()
+             }
+         })
+         .collect();
+diff --git a/crates/pawse/src/settings_store.rs b/crates/pawse/src/settings_store.rs
+index 828cbf1..289e0dd 100644
+--- a/crates/pawse/src/settings_store.rs
++++ b/crates/pawse/src/settings_store.rs
+@@ -127,7 +127,13 @@ fn default_volume() -> f32 {
+ }
+ 
+ pub const UNLIMITED_CACHE_GB: u32 = 100 * 1024;
+-pub const NETWORK_CACHE_CHOICES_GB: [u32; 7] = [1, 2, 4, 8, 16, 32, UNLIMITED_CACHE_GB];
++// `HALF_GB_CACHE_GB` is the sentinel for 512 MB (the field is expressed in GB, so a
++// half-GB choice cannot be represented as a positive integer). The setting is stored
++// in GB and was previously clamped to a minimum of 1 GB; 0 was therefore never a valid
++// stored value, so it is safe to reuse as 512 MB.
++pub const HALF_GB_CACHE_GB: u32 = 0;
++pub const NETWORK_CACHE_CHOICES_GB: [u32; 8] =
++    [HALF_GB_CACHE_GB, 1, 2, 4, 8, 16, 32, UNLIMITED_CACHE_GB];
+ 
+ fn default_network_cache_gb() -> u32 {
+     8
+@@ -1021,7 +1027,11 @@ impl SettingsStore {
+     }
+ 
+     pub fn network_cache_bytes(&self) -> u64 {
+-        u64::from(self.settings.network_cache_gb.max(1)) * 1024 * 1024 * 1024
++        if self.settings.network_cache_gb == HALF_GB_CACHE_GB {
++            512 * 1024 * 1024
++        } else {
++            u64::from(self.settings.network_cache_gb.max(1)) * 1024 * 1024 * 1024
++        }
+     }
+ 
+     pub fn network_cache_gb(&self) -> u32 {
+-- 
+2.55.0
+

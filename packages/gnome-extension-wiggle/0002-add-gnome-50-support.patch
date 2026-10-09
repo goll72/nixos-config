@@ -1,0 +1,18 @@
+Declare GNOME Shell 50 as supported.
+
+The GNOME 49 cursor-visibility API (inhibit/uninhibit_cursor_visibility)
+introduced by the previous patch is unchanged in GNOME 50, so the
+extension works on 50 as-is.
+
+--- a/metadata.json
++++ b/metadata.json
+@@ -5,7 +5,8 @@
+     "46",
+     "47",
+     "48",
+-    "49"
++    "49",
++    "50"
+   ],
+   "url": "https://github.com/mechtifs/wiggle",
+   "uuid": "wiggle@mechtifs",
