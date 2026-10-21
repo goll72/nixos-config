@@ -3,6 +3,12 @@
 
 let
   cfg = config.services.hydroxide;
+
+  hydroxideDir = "/var/lib/hydroxide";
+  acmeDir = "/var/lib/acme";
+
+  cert = if cfg.domain == null then cfg.cert else "${acmeDir}/${cfg.domain}/fullchain.pem";
+  key = if cfg.domain == null then cfg.key else "${acmeDir}/${cfg.domain}/key.pem";
 in {
   options.services.hydroxide = {
     enable = lib.mkEnableOption "Hydroxide (Protonmail bridge) service";
@@ -34,13 +40,7 @@ in {
     };
   };
 
-  config = let
-    acmeDir = "/var/lib/acme";
-
-    cert = if cfg.domain == null then cfg.cert else "${acmeDir}/${cfg.domain}/fullchain.pem";
-    key = if cfg.domain == null then cfg.key else "${acmeDir}/${cfg.domain}/key.pem";
-  in
-  lib.mkIf cfg.enable {
+  config = lib.mkIf cfg.enable {
     users.groups.hydroxide = {};
 
     users.users.hydroxide = {
@@ -48,7 +48,7 @@ in {
       group = "hydroxide";
       extraGroups = lib.mkIf cfg.useACME [ "acme" ];
 
-      home = "/var/lib/hydroxide";
+      home = hydroxideDir;
       createHome = true;
     };
     
@@ -69,7 +69,7 @@ in {
 
       environment = {
         # Hydroxide will use `auth.json` from `$XDG_CONFIG_HOME/hydroxide` -> `/var/lib/hydroxide`
-        XDG_CONFIG_HOME = "/var/lib";
+        XDG_CONFIG_HOME = dirOf hydroxideDir;
       };
     };
   };

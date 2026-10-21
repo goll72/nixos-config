@@ -29,10 +29,18 @@
 
   sops.secrets = {
     "acme-tsig-key" = { };
+
     "dns-ksk" = {
       owner = "knot";
     };
+
+    "hydroxide-auth-json" = {
+      owner = "hydroxide";
+      path = "/var/lib/hydroxide/auth.json";
+    };
+
     "hydroxide-bridge-pass" = { };
+
     "wg-key" = { };
   }
   // lib.mergeAttrsList (map (x: { "host-tsig-key/${x}" = { }; }) meta.dynamicHosts);
