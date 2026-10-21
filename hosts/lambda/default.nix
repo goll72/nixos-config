@@ -33,11 +33,6 @@
       owner = "knot";
     };
 
-    "hydroxide-auth-json" = {
-      owner = "hydroxide";
-      path = "/var/lib/hydroxide/auth.json";
-    };
-
     "hydroxide-bridge-pass" = { };
 
     "wg-key" = { };
