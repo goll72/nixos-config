@@ -26,18 +26,10 @@
       zstyle ':vcs_info:git:*' stagedstr ' %F{yellow}+%f'
 
       setopt PROMPT_SUBST
-
       PROMPT='%4~$vcs_info_msg_0_ %# '
       RPROMPT='%(?..%F{red}<<%f)'
 
-      set_zellij_title() {
-        [[ -n "$ZELLIJ" ]] && print -Pn '\e]0;%m:%1~\a'
-      }
-
       add-zsh-hook precmd vcs_info
-      add-zsh-hook precmd set_zellij_title
-
-      REPORTTIME=10
     '';
   };
 }

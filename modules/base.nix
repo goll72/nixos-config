@@ -101,7 +101,28 @@ in
     };
   };
 
-  programs.zsh.enable = true;
+  programs.ssh.extraConfig = ''
+    SendEnv COLORTERM
+  '';
+
+  programs.zsh = {
+    enable = true;
+
+    shellInit = ''
+      autoload -Uz add-zsh-hook
+
+      set_term_title() {
+        print -Pn '\e]0;%m:%1%(!. (#).)~\a'
+      }
+
+      setopt PROMPT_SUBST
+      PROMPT='%m:%4~ %# '
+
+      add-zsh-hook precmd set_term_title
+
+      REPORTTIME=10
+    '';
+  };
 
   # For zsh autocompletion
   environment.pathsToLink = [ "/share/zsh" ];

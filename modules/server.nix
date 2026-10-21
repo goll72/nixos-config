@@ -48,19 +48,4 @@ in
   services.journald.settings.Journal.SystemMaxUse = "100M";
 
   security.sudo.wheelNeedsPassword = false;
-
-  programs.zsh = {
-    enableLsColors = true;
-    enableCompletion = true;
-
-    shellInit = ''
-      autoload -Uz add-zsh-hook
-
-      set_term_title() {
-        print -Pn '\e]0;%m:%1~\a'
-      }
-
-      add-zsh-hook precmd set_term_title
-    '';
-  };
 }
