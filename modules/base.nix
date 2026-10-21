@@ -78,6 +78,7 @@ in
     pkgs.tree
     pkgs.waypipe
     pkgs.wireguard-tools
+    pkgs.zellij
 
     pkgs.age
     pkgs.sops
