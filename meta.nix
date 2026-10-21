@@ -19,6 +19,11 @@ let
       "xylo"
     ];
 
+    authoritative = [
+      "lambda"
+      "mu"
+    ];
+
     allHosts = [
       "lambda"
       "mu"

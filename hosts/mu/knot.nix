@@ -10,9 +10,10 @@ in
 
     settings = {
       server = {
+        # The localhost alternative port is added in services.local-dns.
+        #
+        # vd. hosts/lambda/knot.nix @ services.knot.settings.server
         listen = [
-          "127.0.0.1@53"
-          "::1@53"
           "${meta.perHost.mu.privateIP.v4}@53"
           "${meta.perHost.mu.publicIP.v6}@53"
           "${mu}@54"

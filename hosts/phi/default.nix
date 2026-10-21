@@ -84,6 +84,20 @@
     };
   };
 
+  # Start a local DNS server that will forward requests under the internal
+  # domain to the VPN-specific DNS servers, requests specific to our public
+  # domain to one of the authoritative nameservers and other requests to
+  # select public DNS servers. More importantly, this setup still allows
+  # other VPNs and private networks to extend the resolver list in
+  # resolv.conf via DHCP.
+  services.local-dns = {
+    enable = true;
+    # If the DNS server for the phi.net VPN and the local proxy were merged, we would
+    # have to list entries for the VPN's DNS in resolv.conf, adding uncertainty as to
+    # which nameservers are tried first for resolution of any given name.
+    mergeVpnDns = false;
+  };
+
   services.orca.enable = false;
   services.speechd.enable = false;
   services.pipewire.enable = true;

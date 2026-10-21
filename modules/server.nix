@@ -16,7 +16,11 @@ in
   networking.useDHCP = true;
 
   networking.firewall.enable = false;
-  networking.resolvconf.useLocalResolver = false;
+
+  # The local resolver prepends 127.0.0.1/::1 to resolv.conf via
+  # openresolv (useLocalResolver is set by the local-dns module).
+  services.local-dns.enable = true;
+  services.knot-zone-watch.enable = true;
 
   environment.enableAllTerminfo = true;
 

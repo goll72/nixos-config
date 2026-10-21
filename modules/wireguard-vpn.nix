@@ -8,8 +8,23 @@
 
 let
   cfg = config.services.wireguard-vpn;
+
+  # One-directional read of literal local-dns options (no module cycle:
+  # local-dns derives everything from meta). When set, the local resolver
+  # takes over .internal for the hubs this host serves, so the per-VPN
+  # dnsmasq instances are redundant. "Standalone" means the local
+  # resolver runs here but does not fold the hubs in (e.g. phi), so
+  # NetworkManager must point connections at 127.0.0.1 instead of the
+  # hub tunnel addresses.
+  localDnsMerged = config.services.local-dns.enable && config.services.local-dns.mergeVpnDns;
+  localDnsStandalone = config.services.local-dns.enable && !config.services.local-dns.mergeVpnDns;
 in
 {
+  imports = [
+    ./local-dns.nix
+    ./knot-zone-watch.nix
+  ];
+
   options.services.wireguard-vpn = lib.mkOption {
     type = lib.types.attrsOf (
       lib.types.submodule {
@@ -145,17 +160,22 @@ in
                         address1 = "${meta.toV4 id thisHost}/${lib.toString subnets.v4.len}";
                         method = "manual";
 
-                        dns = meta.toV4 id id;
+                        dns = if localDnsStandalone then "127.0.0.1" else meta.toV4 id id;
                         dns-search = meta.internalDomain;
+                      }
+                      // lib.optionalAttrs localDnsStandalone {
+                        # Ahead of the uplink connection's DHCP DNS so
+                        # glibc asks the local resolver first.
+                        dns-priority = -1;
                       };
 
                       ipv6 = {
                         address1 = "${meta.toV6 id thisHost}/${lib.toString subnets.v6.len}";
                         method = "manual";
 
-                        dns = meta.toV6 id id;
                         dns-search = meta.internalDomain;
-                      };
+                      }
+                      // lib.optionalAttrs (!localDnsStandalone) { dns = meta.toV6 id id; };
                     }
                     // (lib.optionalAttrs (thisHost == id) serverOptions)
                     // (lib.optionalAttrs (thisHost != id) clientOptions);
@@ -238,13 +258,16 @@ in
 
           dnsServerSection =
             let
+              # All hosts under every VPN's addressing (aligned with
+              # local-dns), so a name resolves wherever the client is.
               dnsmasqHostsFile = pkgs.writeText "hosts" (
-                lib.concatStringsSep "\n" (
-                  map (x: ''
-                    ${meta.toV4 id x} ${x}.${meta.internalDomain}
-                    ${meta.toV6 id x} ${x}.${meta.internalDomain}
-                  '') vpnHosts
-                )
+                lib.concatMapStrings (
+                  x:
+                  lib.concatMapStrings (subnet: ''
+                    ${meta.toV4 subnet x} ${x}.${meta.internalDomain}
+                    ${meta.toV6 subnet x} ${x}.${meta.internalDomain}
+                  '') (lib.attrNames meta.wireguard)
+                ) vpnHosts
               );
 
               dnsmasqConfigFile = pkgs.writeText "dnsmasq-${id}.conf" ''
@@ -299,7 +322,7 @@ in
         # would silently drop e.g. firewallSection's lists, so it should be
         # converted to use `mkMerge`.
         lib.recursiveUpdate (lib.recursiveUpdate snippetForBackend.${backend} (
-          lib.optionalAttrs (thisHost == id) dnsServerSection
+          lib.optionalAttrs (thisHost == id && !localDnsMerged) dnsServerSection
         )) (lib.optionalAttrs (thisHost == id) firewallSection)
       ) cfg;
 
@@ -312,6 +335,23 @@ in
     in
     {
       assertions = lib.mkMerge (map (lib.attrByPath [ "assertions" ] [ ]) snippets);
+
+      # Refresh this host's WireGuard peer when a dynamic hub re-registers
+      # its address: the zone watcher clears dnsmasq's cache and restarts
+      # the peer unit, whose wg set resolves the endpoint afresh.
+      services.knot-zone-watch.rules = lib.concatMap (
+        id:
+        let
+          thisHost = config.networking.hostName;
+          inherit (cfg.${id}) backend interface;
+        in
+        lib.optional (backend == "wireguard" && thisHost != id && lib.elem id meta.dynamicHosts) {
+          name = "${id}.${meta.domain}.";
+          zone = "${meta.domain}.";
+          rrtypes = [ "AAAA" ];
+          units = [ "wireguard-${interface}-peer-${id}.service" ];
+        }
+      ) (lib.attrNames cfg);
 
       sops.templates = fromSnippets [
         "sops"

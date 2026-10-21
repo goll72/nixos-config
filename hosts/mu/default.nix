@@ -33,6 +33,7 @@
 
   networking.hostName = "mu";
 
+  # Key-only SSH auth (no passwords on this host)
   users.users.goll = { };
 
   nix.settings = {

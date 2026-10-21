@@ -48,95 +48,54 @@ let
   # file (first boot, or after the operator wiped the zone to
   # re-bootstrap) the batch starts with an SOA add, which Knot requires
   # to create a zone from an empty journal.
-  staticPlan = pkgs.writeScriptBin "knot-static-plan" ''
-    #!${pkgs.python3}/bin/python3
-    import os
-    import sys
-
-    desired_path, state_path = sys.argv[1:3]
-
-    def load(path):
-        records = {}
-        with open(path) as f:
-            for line in f:
-                parts = line.split(None, 4)
-                if len(parts) < 5:
-                    continue
-                owner, _ttl, _cls, rtype, rdata = parts
-                records.setdefault((owner.lower(), rtype.upper()), set()).add(rdata)
-        return records
-
-    desired = load(desired_path)
-    bootstrapping = not os.path.exists(state_path)
-    applied = {} if bootstrapping else load(state_path)
-
-    out = [
-        "server 127.0.0.1",
-        "zone ${domain}.",
-    ]
-    
-    if bootstrapping:
-        out.append(
-            "update add ${domain}. 3600 IN SOA ${domain}. "
-            "hostmaster.${domain}. 1 3600 900 604800 300"
-        )
-
-    for owner, rtype in sorted(set(applied) | set(desired)):
-        old = applied.get((owner, rtype), set())
-        new = desired.get((owner, rtype), set())
-        if old == new:
-            continue
-        # Static owner names never carry dynamic records (those live at
-        # dynamic-host and _acme-challenge names, which the static-update
-        # acl does not allow), so a blanket per-owner-type delete cannot
-        # eat ipup/ACME records.
-        if old:
-            out.append(f"update delete {owner} {rtype}")
-        for rdata in sorted(new):
-            out.append(f"update add {owner} 3600 IN {rtype} {rdata}")
-
-    out.append("send")
-    print("\n".join(out))
-  '';
+  staticPlan = pkgs.writeScriptBin "knot-static-plan" (
+    builtins.replaceStrings
+      [
+        "@PYTHON@"
+        "@DOMAIN@"
+        "@KNOT_PORT@"
+      ]
+      [
+        "${pkgs.python3}/bin/python3"
+        domain
+        (toString config.services.local-dns.knotPort)
+      ]
+      (builtins.readFile ./knot-static-plan.py)
+  );
 
   staticSync = pkgs.writeShellApplication {
     name = "knot-static-sync";
     runtimeInputs = [
       pkgs.coreutils
       pkgs.gnugrep
-      
+
       config.services.knot.package
     ];
-    text = ''
-      state="/var/lib/knot/static-sync.state"
-
-      plan="$(${staticPlan}/bin/knot-static-plan ${staticRecords} "$state")"
-      if ! grep -q '^update ' <<<"$plan"; then
-        exit 0
-      fi
-
-      # set -e: a refused update aborts here and the state file keeps
-      # pointing at the last applied records, so the next run retries.
-      # Delete the state file to force a full re-sync (e.g. after
-      # restoring the zone from a backup without it).
-      knsupdate <<<"$plan"
-      rm -f "$state" && cp ${staticRecords} "$state"
-    '';
+    text =
+      builtins.replaceStrings
+        [
+          "@STATIC_PLAN@"
+          "@STATIC_RECORDS@"
+        ]
+        [
+          (toString staticPlan)
+          (toString staticRecords)
+        ]
+        (builtins.readFile ./knot-static-sync.sh);
   };
 
   # ACLs for the three classes of update writer. Everything not matched
   # here is refused.
-  staticOwners =
-    [ "${domain}." ]
-    ++ map (x: "${x}.${domain}.") 
-      [
-        "ns1"
-        "ns2"
-        "lambda"
-        "mu"
-        "vault"
-      ]
-    ;
+  staticOwners = [
+    "${domain}."
+  ]
+  ++ map (x: "${x}.${domain}.") [
+    "ns1"
+    "ns2"
+    "lambda"
+    "mu"
+    "vault"
+  ];
 
   dynamicAcls = lib.listToAttrs (
     map (x: {
@@ -151,39 +110,53 @@ let
   );
 in
 {
+  # knot-static-sync (and the ACME RFC2136 client) target the local
+  # knotd on the port owned by the local-dns module.
+  assertions = [
+    {
+      assertion = config.services.local-dns.enable;
+      message = "hosts/lambda/knot.nix: knot-static-sync uses services.local-dns.knotPort; enable services.local-dns.";
+    }
+  ];
+
   sops.templates."knot-secrets" = {
     # keymgr and keyFiles reads happen as the knot user in preStart.
     owner = "knot";
-    content = let
-      keys = [
-        {
-          keyName = "acme";
+    content =
+      let
+        keys = [
+          {
+            keyName = "acme";
+            algorithm = "hmac-sha512";
+            secret = config.sops.placeholder."acme-tsig-key";
+          }
+        ]
+        ++ map (x: {
+          keyName = "${x}.${domain}";
           algorithm = "hmac-sha512";
-          secret = config.sops.placeholder."acme-tsig-key";
-        }
-      ]
-      ++ map (x: {
-        keyName = "${x}.${domain}";
-        algorithm = "hmac-sha512";
-        secret = config.sops.placeholder."host-tsig-key/${x}";
-      }) meta.dynamicHosts;
-      # Each entry is a separate '' block, and '' blocks strip their own
-      # indentation, so entries cannot carry leading indent when
-      # interpolated. That is fine: the sequence items sit at the same
-      # indentation as `key:` (valid YAML), which needs no leading
-      # indent. Entry blocks close on their last content line so the
-      # separator below is the only newline between entries.
-      entry =
-        { keyName, algorithm, secret }:
-        ''
-          - id: ${keyName}
-            algorithm: ${algorithm}
-            secret: "${secret}" '';
-    in
-    ''
-      key:
-      ${lib.concatMapStringsSep "\n" entry keys}
-    '';
+          secret = config.sops.placeholder."host-tsig-key/${x}";
+        }) meta.dynamicHosts;
+        # Each entry is a separate '' block, and '' blocks strip their own
+        # indentation, so entries cannot carry leading indent when
+        # interpolated. That is fine: the sequence items sit at the same
+        # indentation as `key:` (valid YAML), which needs no leading
+        # indent. Entry blocks close on their last content line so the
+        # separator below is the only newline between entries.
+        entry =
+          {
+            keyName,
+            algorithm,
+            secret,
+          }:
+          ''
+            - id: ${keyName}
+              algorithm: ${algorithm}
+              secret: "${secret}" '';
+      in
+      ''
+        key:
+        ${lib.concatMapStringsSep "\n" entry keys}
+      '';
   };
 
   services.knot = {
@@ -200,10 +173,18 @@ in
         # Public service on port 53. The Wireguard VPN addresses are
         # served on port 54 so that the VPN's dnsmasq can own port 53 on
         # the tunnel addresses; that is also where mu pulls its zone
-        # transfers from.
+        # transfers from. We don't declare it here, but services.local-dns
+        # binds knot to an alternative port on localhost, and it is used for:
+        #
+        #  - serving authoritative requests for our domain from the local dnsmasq resolver
+        #
+        #  - answer requests from the zone watcher, to figure out which record(s) changed
+        #
+        #  - lego (ACME client) for TLS certificates using dns-01 challenged
+        #
+        #  - knot-static-sync (script to synchronize knot's current journal
+        #    state with the declarative zones in a zonefileless setup)
         listen = [
-          "127.0.0.1@53"
-          "::1@53"
           "${meta.perHost.lambda.privateIP.v4}@53"
           "${meta.perHost.lambda.publicIP.v6}@53"
           "${lambda}@54"
