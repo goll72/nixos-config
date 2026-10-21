@@ -95,7 +95,7 @@ in
       KbdInteractiveAuthentication = false;
       PermitRootLogin = "no";
 
-      # NOTE: needed by some programs, such as dircolors, that won't
+      # NOTE: Needed by some programs, such as dircolors, that won't
       # recognize some terminal emulators (e.g. foot) just from $TERM
       AcceptEnv = [ "COLORTERM" ];
     };
@@ -129,4 +129,10 @@ in
 
     extraGroups = [ "wheel" ];
   };
+
+  # Remove this after ensuring that an up-to-date version of ca-certificates is being used
+  security.pki.caCertificateBlacklist = [
+    "Comodo AAA Services root"
+    "emSign ECC Root CA - G3"
+  ];
 }
