@@ -94,6 +94,10 @@ in
       UsePAM = true;
       KbdInteractiveAuthentication = false;
       PermitRootLogin = "no";
+
+      # NOTE: needed by some programs, such as dircolors, that won't
+      # recognize some terminal emulators (e.g. foot) just from $TERM
+      AcceptEnv = [ "COLORTERM" ];
     };
   };
 
