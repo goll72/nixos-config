@@ -109,19 +109,21 @@ in
   programs.zsh = {
     enable = true;
 
-    shellInit = ''
+    interactiveShellInit = ''
       autoload -Uz add-zsh-hook
 
       set_term_title() {
-        print -Pn '\e]0;%m:%1%(!. (#).)~\a'
+        print -Pn '\e]0;%m:%1~%(!. (#).)\a'
       }
-
-      setopt PROMPT_SUBST
-      PROMPT='%m:%4~ %# '
 
       add-zsh-hook precmd set_term_title
 
       REPORTTIME=10
+    '';
+
+    promptInit = ''
+      setopt PROMPT_SUBST
+      PROMPT='%m:%4~ %# '
     '';
   };
 
@@ -151,6 +153,8 @@ in
 
     extraGroups = [ "wheel" ];
   };
+
+  users.users.root.shell = pkgs.zsh;
 
   # Remove this after ensuring that an up-to-date version of ca-certificates is being used
   security.pki.caCertificateBlacklist = [
