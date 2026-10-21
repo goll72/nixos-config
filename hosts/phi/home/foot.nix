@@ -1,3 +1,5 @@
+{ ... }:
+
 {
   programs.foot = {
     enable = true;

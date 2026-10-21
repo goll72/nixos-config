@@ -1,6 +1,6 @@
 {
-  config,
   lib,
+  config,
   pkgs,
   ...
 }:
@@ -202,6 +202,13 @@ in
       ]
     ) (lib.attrNames cfg.interfaces);
 
+    users.groups.ipup = { };
+
+    users.users.ipup = {
+      isSystemUser = true;
+      group = "ipup";
+    };
+
     environment.etc."ipup/conf".source = format.generate "ipup.conf" (serverSections // ifaceSections);
 
     # For manual oneshot runs (ipup -o).
@@ -214,9 +221,29 @@ in
       wantedBy = [ "multi-user.target" ];
 
       serviceConfig = {
+        User = "ipup";
+        Group = "ipup";
+
+        # -s logs to stdout, which journald picks up when running unprivileged.
         ExecStart = "${lib.getExe cfg.package} -c /etc/ipup/conf -s";
         Restart = "on-failure";
         RestartSec = 10;
+
+        NoNewPrivileges = true;
+        ProtectSystem = "strict";
+        ProtectHome = true;
+        PrivateTmp = true;
+        ProtectKernelTunables = true;
+        ProtectKernelModules = true;
+        ProtectControlGroups = true;
+        LockPersonality = true;
+        # ipup watches addresses through netlink; DNS needs inet sockets.
+        RestrictAddressFamilies = [
+          "AF_UNIX"
+          "AF_INET"
+          "AF_INET6"
+          "AF_NETLINK"
+        ];
       };
     };
   };

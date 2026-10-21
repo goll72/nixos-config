@@ -4,8 +4,9 @@
 
 {
   lib,
-  pkgs,
   config,
+  options,
+  pkgs,
   ...
 }:
 
@@ -13,6 +14,11 @@ let
   cfg = config.services.knot-zone-watch;
 
   knot = config.services.knot.package;
+
+  # The watcher queries the localhost knotd listener on the port chosen by
+  # services.local-dns (which also asserts it is enabled below). Read the
+  # option without importing local-dns.nix so this module stays a leaf.
+  knotPort = if options.services ? local-dns then config.services.local-dns.knotPort else 5354;
 
   pythonEnv = pkgs.python3.withPackages (ps: [
     ps.dbus-python
@@ -49,15 +55,13 @@ let
         (lib.getExe' knot "kdig")
         "${config.systemd.package}/bin/systemctl"
         (lib.getExe pkgs.bash)
-        (toString config.services.local-dns.knotPort)
+        (toString knotPort)
         (toString rulesFile)
       ]
       (builtins.readFile ./knot-zone-watch.py)
   );
 in
 {
-  imports = [ ./local-dns.nix ];
-
   options.services.knot-zone-watch = {
     enable = lib.mkEnableOption "restarting WireGuard peer units when Knot reports zone updates";
 
@@ -117,8 +121,8 @@ in
         message = "services.knot-zone-watch requires services.knot.enable (zone_updated signals).";
       }
       {
-        assertion = config.services.local-dns.enable;
-        message = "services.knot-zone-watch requires services.local-dns.enable (owns the 127.0.0.1 listener used for fresh authoritative queries).";
+        assertion = options.services ? local-dns && config.services.local-dns.enable;
+        message = "services.knot-zone-watch requires services.local-dns (imported and enabled): it owns the 127.0.0.1 listener used for fresh authoritative queries.";
       }
     ];
 

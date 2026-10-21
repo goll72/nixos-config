@@ -1,3 +1,5 @@
+{ ... }:
+
 {
   disko.devices.disk = {
     main = {
@@ -28,7 +30,7 @@
                   "tpm2-measure-pcr=yes"
                   "fixate-volume-key=d3f215bbe783665fbadadf1ae76310e32a7314e463fad7142331ffbe1b5963b6"
                 ];
-                
+
                 allowDiscards = true;
               };
 
@@ -53,4 +55,3 @@
     };
   };
 }
-

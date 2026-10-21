@@ -1,8 +1,9 @@
 {
   lib,
-  pkgs,
-  meta,
+  lib',
   config,
+  meta,
+  pkgs,
   ...
 }:
 
@@ -21,6 +22,9 @@ let
 in
 {
   imports = [
+    # local-dns and knot-zone-watch are independent leaf modules; this
+    # module is the only one that imports both (it reads the former's
+    # options and configures the latter's rules).
     ./local-dns.nix
     ./knot-zone-watch.nix
   ];
@@ -72,12 +76,9 @@ in
 
   config =
     let
-      vpnHosts = map ({ name, ... }: name) (
-        lib.lists.filter ({ value, ... }: builtins.hasAttr "wireguard" value) (
-          lib.attrsets.attrsToList meta.perHost
-        )
-      );
-
+      # One list of plain config fragments per VPN. Fragments are merged
+      # with mkMerge semantics below (so e.g. `listOf` options concatenate
+      # instead of replace, as a recursiveUpdate of the fragments would).
       snippets = lib.mapAttrsToList (
         id:
         {
@@ -92,8 +93,8 @@ in
           subnets = meta.wireguard.${id};
 
           getIPsForHost = x: [
-            "${meta.toV4 id x}/32"
-            "${meta.toV6 id x}/128"
+            "${lib'.toV4 id x}/32"
+            "${lib'.toV6 id x}/128"
           ];
 
           getIPsForNet = x: [
@@ -112,7 +113,7 @@ in
                   "wireguard-peer.${meta.perHost.${x}.wireguard}" = {
                     allowed-ips = lib.concatStringsSep ";" (getIPsForHost x);
                   };
-                }) (lib.lists.filter (x: x != id) vpnHosts);
+                }) (lib.lists.filter (x: x != id) meta.vpnHosts);
 
                 serverOptions = {
                   wireguard = {
@@ -157,10 +158,10 @@ in
                       };
 
                       ipv4 = {
-                        address1 = "${meta.toV4 id thisHost}/${lib.toString subnets.v4.len}";
+                        address1 = "${lib'.toV4 id thisHost}/${lib.toString subnets.v4.len}";
                         method = "manual";
 
-                        dns = if localDnsStandalone then "127.0.0.1" else meta.toV4 id id;
+                        dns = if localDnsStandalone then "127.0.0.1" else lib'.toV4 id id;
                         dns-search = meta.internalDomain;
                       }
                       // lib.optionalAttrs localDnsStandalone {
@@ -170,12 +171,12 @@ in
                       };
 
                       ipv6 = {
-                        address1 = "${meta.toV6 id thisHost}/${lib.toString subnets.v6.len}";
+                        address1 = "${lib'.toV6 id thisHost}/${lib.toString subnets.v6.len}";
                         method = "manual";
 
                         dns-search = meta.internalDomain;
                       }
-                      // lib.optionalAttrs (!localDnsStandalone) { dns = meta.toV6 id id; };
+                      // lib.optionalAttrs (!localDnsStandalone) { dns = lib'.toV6 id id; };
                     }
                     // (lib.optionalAttrs (thisHost == id) serverOptions)
                     // (lib.optionalAttrs (thisHost != id) clientOptions);
@@ -186,8 +187,8 @@ in
             wireguard =
               let
                 resolvconfRecord = ''
-                  nameserver ${meta.toV4 id id}
-                  nameserver ${meta.toV6 id id}
+                  nameserver ${lib'.toV4 id id}
+                  nameserver ${lib'.toV6 id id}
                   search ${meta.internalDomain}
                 '';
 
@@ -195,15 +196,15 @@ in
                   privateKeyFile = config.sops.secrets.${privateKeySecret}.path;
 
                   ips = [
-                    "${meta.toV4 id id}/${lib.toString subnets.v4.len}"
-                    "${meta.toV6 id id}/${lib.toString subnets.v6.len}"
+                    "${lib'.toV4 id id}/${lib.toString subnets.v4.len}"
+                    "${lib'.toV6 id id}/${lib.toString subnets.v6.len}"
                   ];
 
                   peers = map (x: {
                     name = x;
                     publicKey = meta.perHost.${x}.wireguard;
                     allowedIPs = getIPsForHost x;
-                  }) (lib.lists.filter (x: x != id) vpnHosts);
+                  }) (lib.lists.filter (x: x != id) meta.vpnHosts);
 
                   listenPort = meta.wireguard.${id}.port;
                 };
@@ -260,26 +261,16 @@ in
             let
               # All hosts under every VPN's addressing (aligned with
               # local-dns), so a name resolves wherever the client is.
-              dnsmasqHostsFile = pkgs.writeText "hosts" (
-                lib.concatMapStrings (
-                  x:
-                  lib.concatMapStrings (subnet: ''
-                    ${meta.toV4 subnet x} ${x}.${meta.internalDomain}
-                    ${meta.toV6 subnet x} ${x}.${meta.internalDomain}
-                  '') (lib.attrNames meta.wireguard)
-                ) vpnHosts
+              dnsmasqHostsFile = pkgs.writeText "hosts" lib'.internalHosts;
+
+              dnsmasqConfigFile = (lib'.dnsmasqSettingsFormat pkgs).generate "dnsmasq-${id}.conf" (
+                lib'.dnsmasqCommonSettings
+                // {
+                  no-hosts = true;
+                  addn-hosts = toString dnsmasqHostsFile;
+                  listen-address = "${lib'.toV4 id thisHost},${lib'.toV6 id thisHost}";
+                }
               );
-
-              dnsmasqConfigFile = pkgs.writeText "dnsmasq-${id}.conf" ''
-                no-hosts
-                addn-hosts=${dnsmasqHostsFile}
-                dns-loop-detect
-
-                bind-dynamic
-                listen-address=${meta.toV4 id thisHost},${meta.toV6 id thisHost}
-
-                local-ttl=300
-              '';
             in
             {
               systemd.services."wireguard-vpn-${id}-dns-server" = {
@@ -314,27 +305,24 @@ in
             };
           };
         in
-        # NOTE: `recursiveUpdate` merges attrsets but replaces lists (right
-        # side wins), unlike `mkMerge` where e.g. `listOf` options concatenate.
-        #
-        # Safe here because the merged pieces have disjoint keys. But if the
-        # backend snippets ever also touch `networking.firewall` keys, this
-        # would silently drop e.g. firewallSection's lists, so it should be
-        # converted to use `mkMerge`.
-        lib.recursiveUpdate (lib.recursiveUpdate snippetForBackend.${backend} (
-          lib.optionalAttrs (thisHost == id && !localDnsMerged) dnsServerSection
-        )) (lib.optionalAttrs (thisHost == id) firewallSection)
+        [
+          snippetForBackend.${backend}
+        ]
+        ++ lib.optional (thisHost == id && !localDnsMerged) dnsServerSection
+        ++ lib.optional (thisHost == id) firewallSection
       ) cfg;
 
-      # NOTE: The top-level config must be an attrset with statically known
-      # keys: if its structure depended on `cfg` (e.g. a top-level mkMerge
-      # over mapAttrsToList), collecting config structure would force `cfg`,
-      # which in turn requires this module's config structure, leading to
-      # infinite recursion. So the cfg-dependent merges live one level down.
-      fromSnippets = path: lib.mkMerge (map (lib.attrByPath path { }) snippets);
+      fragments = lib.concatLists snippets;
     in
     {
-      assertions = lib.mkMerge (map (lib.attrByPath [ "assertions" ] [ ]) snippets);
+      # NOTE: The top-level config (and the `networking` subtree) must be attrsets with
+      # statically known keys: if their structure depended on `cfg` (e.g. a mkMerge over
+      # mapAttrsToList), collecting config structure would force `cfg`, whose fragments
+      # read `config.networking.hostName`, leading to  infinite recursion.
+      #
+      # Thus, the cfg-dependent merges live one level down, under
+      # the fixed keys below; fragments may only touch those keys.
+      assertions = lib.mkMerge (map (fragment: fragment.assertions or [ ]) fragments);
 
       # Refresh this host's WireGuard peer when a dynamic hub re-registers
       # its address: the zone watcher clears dnsmasq's cache and restarts
@@ -353,29 +341,14 @@ in
         }
       ) (lib.attrNames cfg);
 
-      sops.templates = fromSnippets [
-        "sops"
-        "templates"
-      ];
+      sops.templates = lib.mkMerge (map (fragment: fragment.sops.templates or { }) fragments);
 
       networking = {
-        networkmanager = fromSnippets [
-          "networking"
-          "networkmanager"
-        ];
-        wireguard = fromSnippets [
-          "networking"
-          "wireguard"
-        ];
-        firewall = fromSnippets [
-          "networking"
-          "firewall"
-        ];
+        networkmanager = lib.mkMerge (map (fragment: fragment.networking.networkmanager or { }) fragments);
+        wireguard = lib.mkMerge (map (fragment: fragment.networking.wireguard or { }) fragments);
+        firewall = lib.mkMerge (map (fragment: fragment.networking.firewall or { }) fragments);
       };
 
-      systemd.services = fromSnippets [
-        "systemd"
-        "services"
-      ];
+      systemd.services = lib.mkMerge (map (fragment: fragment.systemd.services or { }) fragments);
     };
 }

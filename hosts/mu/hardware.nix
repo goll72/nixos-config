@@ -1,4 +1,9 @@
+{ pkgs, ... }:
+
 {
+  boot.loader.grub.enable = true;
+  boot.kernelPackages = pkgs.linuxPackages_latest;
+
   boot.initrd.availableKernelModules = [
     "ata_piix"
     "kvm-amd"

@@ -1,5 +1,7 @@
 {
   lib,
+  inputs,
+  osConfig,
   ...
 }:
 
@@ -84,8 +86,12 @@
 
           config.nixd =
             let
-              here = "(builtins.getFlake (toString /home/goll/projects/nixos-config))";
-              nixosOpts = "${here}.nixosConfigurations.phi.options";
+              # Reference the flake by its store path (string-quoted so the
+              # path lands in the generated config verbatim, keeping the
+              # source alive through closure reference scanning) instead of
+              # a machine-specific checkout path.
+              here = "(builtins.getFlake ${builtins.toJSON (toString inputs.self)})";
+              nixosOpts = "${here}.nixosConfigurations.${osConfig.networking.hostName}.options";
             in
             {
               nixpkgs.expr = "import ${here}.inputs.nixpkgs {}";

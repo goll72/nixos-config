@@ -6,7 +6,7 @@
 {
   services.vaultwarden = {
     enable = true;
-   
+
     config = {
       DOMAIN = "https://vault.${meta.domain}";
 

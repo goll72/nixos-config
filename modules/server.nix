@@ -1,7 +1,8 @@
 {
   lib,
-  meta,
+  lib',
   config,
+  meta,
   ...
 }:
 
@@ -13,8 +14,6 @@ let
   );
 in
 {
-  networking.useDHCP = true;
-
   networking.firewall.enable = false;
 
   # The local resolver prepends 127.0.0.1/::1 to resolv.conf via
@@ -24,21 +23,7 @@ in
 
   environment.enableAllTerminfo = true;
 
-  services.wireguard-vpn = {
-    phi = {
-      name = "phi.net";
-      interface = "wg.phi";
-      backend = "wireguard";
-      privateKeySecret = "wg-key";
-    };
-
-    lambda = {
-      name = "lambda.net";
-      interface = "wg.lambda";
-      backend = "wireguard";
-      privateKeySecret = "wg-key";
-    };
-  };
+  services.wireguard-vpn = lib'.wireguardVpnPeers "wireguard";
 
   services.openiscsi = {
     enable = true;

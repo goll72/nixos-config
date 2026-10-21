@@ -5,7 +5,8 @@
 }:
 
 let
-  extensions = import ./extensions.nix { inherit pkgs lib; };
+  extensions = import ./extensions.nix { inherit pkgs; };
+  theme = import ./gnome-theme.nix;
 in
 
 {
@@ -44,10 +45,10 @@ in
   programs.dconf.profiles.gdm.databases = lib.mkBefore [
     {
       settings."org/gnome/desktop/interface" = {
-        icon-theme = "Papirus-Dark";
-        font-name = "Fira Sans 12";
-        document-font-name = "Fira Sans 11";
-        monospace-font-name = "Fira Mono 11";
+        icon-theme = theme.iconTheme;
+        font-name = theme.fonts.ui;
+        document-font-name = theme.fonts.document;
+        monospace-font-name = theme.fonts.monospace;
       };
     }
   ];

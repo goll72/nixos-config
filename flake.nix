@@ -19,7 +19,14 @@
   outputs =
     inputs@{ nixpkgs, ... }:
     let
-      meta = import ./meta.nix { inherit (nixpkgs) lib; };
+      meta = import ./meta.nix {
+        inherit (nixpkgs) lib;
+      };
+
+      lib' = import ./lib {
+        inherit (nixpkgs) lib;
+        inherit meta;
+      };
 
       cfg =
         system: mainModule:
@@ -27,7 +34,7 @@
           system = system;
 
           specialArgs = {
-            inherit inputs meta;
+            inherit inputs meta lib';
           };
 
           modules = [

@@ -3,7 +3,7 @@
 # - enabled per-user through dconf (see home/gnome.nix)
 #
 # This file is the single source of truth for the enabled extensions.
-{ pkgs, lib }:
+{ pkgs }:
 
 let
   items = [
@@ -18,11 +18,11 @@ let
     pkgs.gnomeExtensions.wiggle
   ];
 
-  # Each extension is installed under a directory named after its UUID,
-  # so the two never have to be kept in sync by hand.
-  uuids = lib.concatMap (
-    extension: builtins.attrNames (builtins.readDir "${extension}/share/gnome-shell/extensions")
-  ) items;
+  # Each extension package exposes the UUID of the directory it installs
+  # under (nixpkgs' buildGnomeExtension and the in-repo extension packages
+  # all set passthru.extensionUuid), so the two never have to be kept in
+  # sync by hand.
+  uuids = map (extension: extension.extensionUuid) items;
 in
 
 {

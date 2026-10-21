@@ -1,6 +1,6 @@
 {
-  meta,
   config,
+  meta,
   ...
 }:
 
@@ -9,7 +9,7 @@
   assertions = [
     {
       assertion = config.services.local-dns.enable;
-      message = "hosts/lambda/acme.nix: RFC2136_NAMESERVER uses services.local-dns.knotPort; enable services.local-dns.";
+      message = "RFC2136_NAMESERVER uses services.local-dns.knotPort; enable services.local-dns.";
     }
   ];
 

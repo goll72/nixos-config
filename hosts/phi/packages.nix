@@ -8,19 +8,15 @@
     pkgs.hyperfine
     pkgs.jq
     pkgs.ldns
-    pkgs.nixd
-    pkgs.nixfmt
     pkgs.nh
     pkgs.nvtopPackages.intel
     pkgs.perf
     pkgs.qrtool
-    pkgs.ripgrep
     pkgs.sbctl
     pkgs.scrcpy
     pkgs.timg
     pkgs.tinymist
     pkgs.typst
-    pkgs.waypipe
     pkgs.wl-clipboard
 
     pkgs.dosbox-x

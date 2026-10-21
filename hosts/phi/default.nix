@@ -1,9 +1,10 @@
 {
   lib,
-  pkgs,
-  meta,
-  inputs,
+  lib',
   config,
+  inputs,
+  meta,
+  pkgs,
   ...
 }:
 
@@ -21,9 +22,7 @@
 
     ../../modules/base.nix
     ../../modules/avatar.nix
-    # XXX: set up ipup to run as a non-root user
     ../../modules/ipup.nix
-
     ../../modules/wireguard-vpn.nix
   ];
 
@@ -33,7 +32,10 @@
     "passwords/goll" = {
       neededForUsers = true;
     };
-    "ipup-tsig-key" = { };
+    "ipup-tsig-key" = {
+      # The ipup unit runs unprivileged and reads the key itself.
+      owner = "ipup";
+    };
     "wg-key" = { };
   };
 
@@ -68,21 +70,7 @@
     };
   };
 
-  services.wireguard-vpn = {
-    phi = {
-      name = "phi.net";
-      interface = "wg.phi";
-      backend = "networkmanager";
-      privateKeySecret = "wg-key";
-    };
-
-    lambda = {
-      name = "lambda.net";
-      interface = "wg.lambda";
-      backend = "networkmanager";
-      privateKeySecret = "wg-key";
-    };
-  };
+  services.wireguard-vpn = lib'.wireguardVpnPeers "networkmanager";
 
   # Start a local DNS server that will forward requests under the internal
   # domain to the VPN-specific DNS servers, requests specific to our public

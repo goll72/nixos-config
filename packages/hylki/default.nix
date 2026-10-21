@@ -62,6 +62,8 @@ rustPlatform.buildRustPackage (finalAttrs: {
   # NOTE: RAM usage from tests is too high
   doCheck = false;
 
+  passthru.updateScript = nix-update-script { };
+
   postInstall = ''
     mkdir -p "$out/share/icons"
 

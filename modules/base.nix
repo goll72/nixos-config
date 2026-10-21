@@ -1,11 +1,11 @@
-# Common setttings shared by every host
+# Common settings shared by every host
 
 {
   lib,
-  pkgs,
+  config,
   inputs,
   meta,
-  config,
+  pkgs,
   ...
 }:
 
@@ -133,16 +133,6 @@ in
   sops.age.keyFile = "/var/lib/sops-nix/keys.txt";
   sops.defaultSopsFile = inputs.nixos-secrets.lib.secrets.perHost.${hostName};
 
-  sops.secrets =
-    let
-      sharedSecret = {
-        sopsFile = inputs.nixos-secrets.lib.secrets.shared;
-      };
-    in
-    {
-      "shared-secret" = sharedSecret // { };
-    };
-
   users.mutableUsers = false;
 
   users.users.goll = {
@@ -156,7 +146,8 @@ in
 
   users.users.root.shell = pkgs.zsh;
 
-  # Remove this after ensuring that an up-to-date version of ca-certificates is being used
+  # NOTE: Both roots are still shipped by the pinned cacert trust store
+  # (private keys compromised); remove once nss-cacert drops them upstream.
   security.pki.caCertificateBlacklist = [
     "Comodo AAA Services root"
     "emSign ECC Root CA - G3"

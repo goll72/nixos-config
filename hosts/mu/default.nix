@@ -1,9 +1,4 @@
-{
-  meta,
-  pkgs,
-  inputs,
-  ...
-}:
+{ inputs, ... }:
 
 {
   imports = [
@@ -24,12 +19,7 @@
     ../../modules/wireguard-vpn.nix
   ];
 
-  sops.secrets = {
-    "wg-key" = { };
-  };
-
-  boot.loader.grub.enable = true;
-  boot.kernelPackages = pkgs.linuxPackages_latest;
+  sops.secrets."wg-key" = { };
 
   networking.hostName = "mu";
 

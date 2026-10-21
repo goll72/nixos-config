@@ -1,8 +1,7 @@
 {
   lib,
-  pkgs,
-  meta,
   inputs,
+  meta,
   ...
 }:
 
@@ -16,10 +15,10 @@
     ./packages.nix
 
     ./acme.nix
-    ./knot.nix
-    ./vaultwarden.nix
-    ./nginx.nix
     ./hydroxide.nix
+    ./knot.nix
+    ./nginx.nix
+    ./vaultwarden.nix
 
     ../../modules/base.nix
     ../../modules/server.nix
@@ -45,10 +44,6 @@
   }
   // lib.mergeAttrsList (map (x: { "host-tsig-key/${x}" = { }; }) meta.dynamicHosts);
 
-  boot.loader.systemd-boot.enable = true;
-  boot.loader.efi.canTouchEfiVariables = true;
-  boot.kernelPackages = pkgs.linuxPackages_latest;
-
   boot.binfmt = {
     emulatedSystems = [ "x86_64-linux" ];
     preferStaticEmulators = true;
@@ -72,10 +67,7 @@
     isNormalUser = true;
     extraGroups = [ "xhcl" ];
 
-    openssh.authorizedKeys.keys = [
-      "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFlPCfGx5D6pE13e9F4A0Mv5xKapRW1BenmFMvi89ErM xhcl@xylo"
-      "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIO0O9xJpxw0OuYXmyLoSovKUgo6H9Y9Eo8eO3XV4VKaP xhcl@pixel"
-    ];
+    openssh.authorizedKeys.keys = meta.perHost.lambda.extraUsers.xhcl.keys;
   };
 
   system.stateVersion = "25.11";

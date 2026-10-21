@@ -1,3 +1,5 @@
+{ ... }:
+
 {
   xdg.configFile."seekey/config.ini" = {
     enable = true;

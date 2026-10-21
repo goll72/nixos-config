@@ -1,12 +1,13 @@
 {
   lib,
-  pkgs,
   osConfig,
+  pkgs,
   ...
 }:
 
 let
-  extensions = import ../extensions.nix { inherit pkgs lib; };
+  extensions = import ../extensions.nix { inherit pkgs; };
+  theme = import ../gnome-theme.nix;
 
   xkb = osConfig.services.xserver.xkb;
 in
@@ -17,7 +18,7 @@ in
 
     iconTheme = {
       package = pkgs.papirus-icon-theme;
-      name = "Papirus-Dark";
+      name = theme.iconTheme;
     };
 
     theme = {
@@ -46,9 +47,9 @@ in
       accent-color = "slate";
       color-scheme = "prefer-dark";
 
-      font-name = "Fira Sans 12";
-      document-font-name = "Fira Sans 11";
-      monospace-font-name = "Fira Mono 11";
+      font-name = theme.fonts.ui;
+      document-font-name = theme.fonts.document;
+      monospace-font-name = theme.fonts.monospace;
 
       clock-show-weekday = true;
 

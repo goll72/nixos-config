@@ -27,16 +27,16 @@ rustPlatform.buildRustPackage (finalAttrs: {
   # The manifest is generated from native/native-manifest.json.in, matching
   # the substitution performed by scripts/gen-installer.sh for Firefox.
   postInstall = ''
-    mkdir -p $out/lib/mozilla/native-messaging-hosts
-    cat > $out/lib/mozilla/native-messaging-hosts/tab_reload_notify_server.json <<EOF
-{
-    "name": "tab_reload_notify_server",
-    "description": "file watch server for the tab-reload-notify extension",
-    "path": "$out/bin/notify-server",
-    "type": "stdio",
-    "allowed_extensions": ["tab_reload_notify@goll.cc"]
-}
-EOF
+        mkdir -p $out/lib/mozilla/native-messaging-hosts
+        cat > $out/lib/mozilla/native-messaging-hosts/tab_reload_notify_server.json <<EOF
+    {
+        "name": "tab_reload_notify_server",
+        "description": "file watch server for the tab-reload-notify extension",
+        "path": "$out/bin/notify-server",
+        "type": "stdio",
+        "allowed_extensions": ["tab_reload_notify@goll.cc"]
+    }
+    EOF
   '';
 
   meta = {

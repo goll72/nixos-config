@@ -8,7 +8,6 @@
   gtk4-layer-shell,
   json-glib,
   libevdev,
-  makeWrapper,
   ncurses,
   pkg-config,
 }:
@@ -17,9 +16,8 @@ stdenv.mkDerivation {
   pname = "seekey";
   version = "0.3.0";
 
-  # Build the local tree (flake source = git-tracked files).  A pinned
-  # fetchFromGitHub would silently ship the last release instead of local
-  # changes; bump the pin only when releasing.
+  # Pinned upstream source; changes made in this repo are applied through the
+  # patches below (bump the pin only when releasing upstream).
   src = fetchFromGitHub {
     owner = "Nakanomk";
     repo = "Seekey";
@@ -44,7 +42,6 @@ stdenv.mkDerivation {
   ];
 
   nativeBuildInputs = [
-    makeWrapper
     pkg-config
 
     gettext
@@ -57,6 +54,8 @@ stdenv.mkDerivation {
   meta = {
     description = "A tool to show your key inputs on wayland";
     homepage = "https://github.com/Nakanomk/Seekey";
-    license = [ lib.licenses.mit ];
+    license = lib.licenses.mit;
+    platforms = lib.platforms.linux;
+    mainProgram = "seekey";
   };
 }

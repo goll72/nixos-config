@@ -1,8 +1,9 @@
 {
   lib,
-  pkgs,
+  lib',
   config,
   meta,
+  pkgs,
   ...
 }:
 
@@ -12,40 +13,26 @@ let
 
   vpnIds = lib.attrNames meta.wireguard;
 
-  # Hosts with a wireguard key participate in every VPN.
-  vpnHosts = lib.filter (host: meta.perHost.${host} ? wireguard) (lib.attrNames meta.perHost);
-
   # VPNs this host acts as hub for (star topology: the VPN key is the hub host id).
   # On a host with a merged local DNS server, these hubs are folded into this instance.
   mergedHubs = lib.optionals cfg.mergeVpnDns (lib.filter (id: thisHost == id) vpnIds);
 
   tunnelListenAddresses = lib.concatMap (id: [
-    (meta.toV4 id id)
-    (meta.toV6 id id)
+    (lib'.toV4 id id)
+    (lib'.toV6 id id)
   ]) mergedHubs;
 
-  # Every known host under every VPN's addressing, so e.g. phi.internal
-  # resolves to all of phi's tunnel addresses regardless of which VPN
-  # the client is on.
-  #
-  # This guarantees that a service (e.g. NFS) running on one VPN won't
-  # be denied for hosts making requests from another VPN.
-  internalHostsFile = pkgs.writeText "local-dns-internal-hosts" (
-    lib.concatMapStrings (
-      host:
-      lib.concatMapStrings (id: ''
-        ${meta.toV4 id host} ${host}.${meta.internalDomain}
-        ${meta.toV6 id host} ${host}.${meta.internalDomain}
-      '') vpnIds
-    ) vpnHosts
-  );
+  # Every known host under every VPN's addressing (see lib'.internalHosts),
+  # so e.g. phi.internal resolves to all of phi's tunnel addresses regardless
+  # of which VPN the client is on.
+  internalHostsFile = pkgs.writeText "local-dns-internal-hosts" lib'.internalHosts;
 
   # When a hub is folded in, queries under the internal domain are answered locally;
   # otherwise forward to the tunnel dnsmasq of each VPN (hub tunnel addresses).
   internalUpstreams = lib.optionals (mergedHubs == [ ]) (
     lib.concatMap (id: [
-      "/${meta.internalDomain}/${meta.toV4 id id}"
-      "/${meta.internalDomain}/${meta.toV6 id id}"
+      "/${meta.internalDomain}/${lib'.toV4 id id}"
+      "/${meta.internalDomain}/${lib'.toV6 id id}"
     ]) vpnIds
   );
 
@@ -97,33 +84,23 @@ in
       # /etc/resolv.conf, which would loop back into this instance.
       resolveLocalQueries = false;
 
-      settings = {
-        bind-dynamic = true;
+      settings =
+        lib'.dnsmasqCommonSettings
+        // {
+          listen-address = [
+            "127.0.0.1"
+            "::1"
+          ]
+          ++ tunnelListenAddresses;
 
-        listen-address = [
-          "127.0.0.1"
-          "::1"
-        ]
-        ++ tunnelListenAddresses;
+          no-resolv = true;
 
-        no-resolv = true;
-        dns-loop-detect = true;
-        local-ttl = 300;
-
-        server = [
-          "1.1.1.1"
-          "9.9.9.9"
-        ]
-        ++ domainUpstreams
-        ++ internalUpstreams;
-      }
-      // lib.optionalAttrs (mergedHubs != [ ]) {
-        # Answer .internal from the inlined hosts file; never forward
-        # (the tunnel addresses above are owned by this same instance,
-        # so forwarding would loop).
-        local = [ "/${meta.internalDomain}/" ];
-        addn-hosts = toString internalHostsFile;
-      };
+          server = config.networking.nameservers ++ domainUpstreams ++ internalUpstreams;
+        }
+        // lib.optionalAttrs (mergedHubs != [ ]) {
+          local = [ "/${meta.internalDomain}/" ];
+          addn-hosts = toString internalHostsFile;
+        };
     };
 
     # Prepends localhost to whatever else is learned, so

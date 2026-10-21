@@ -1,16 +1,17 @@
 {
   lib,
-  pkgs,
-  meta,
+  lib',
   config,
+  meta,
+  pkgs,
   ...
 }:
 
 let
   domain = meta.domain;
 
-  lambda = meta.toV4 "lambda" "lambda";
-  mu = meta.toV4 "lambda" "mu";
+  lambda = lib'.toV4 "lambda" "lambda";
+  mu = lib'.toV4 "lambda" "mu";
 
   # Keymgr must parse the same config knotd uses (it needs the database
   # section to find the KASP db). The module exposes the rendered config
@@ -115,7 +116,7 @@ in
   assertions = [
     {
       assertion = config.services.local-dns.enable;
-      message = "hosts/lambda/knot.nix: knot-static-sync uses services.local-dns.knotPort; enable services.local-dns.";
+      message = "knot-static-sync uses services.local-dns.knotPort; enable services.local-dns.";
     }
   ];
 

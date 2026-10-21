@@ -40,9 +40,9 @@ rustPlatform.buildRustPackage (finalAttrs: {
     ./0001-allow-512m-network-cache-limit.patch
   ];
 
-  # The Cargo.lock lives inside the fetched source; reading it during evaluation is
-  # import-from-derivation but keeps the lockfile pinned upstream rather than vendored here.
-  cargoLock.lockFile = "${finalAttrs.src}/Cargo.lock";
+  # Vendored from the pinned upstream source so that evaluating this package
+  # does not need to realize the fetchFromGitHub output (import-from-derivation).
+  cargoLock.lockFile = ./Cargo.lock;
 
   # The remote-control web UI is embedded into the binary via rust-embed and must be
   # built before cargo, or the embedded assets are empty.
@@ -102,7 +102,12 @@ rustPlatform.buildRustPackage (finalAttrs: {
 
     # GPUI dlopens libvulkan and libGL at runtime for rendering.
     wrapProgram $out/bin/pawse \
-      --suffix LD_LIBRARY_PATH : ${lib.makeLibraryPath [ vulkan-loader libGL ]}
+      --suffix LD_LIBRARY_PATH : ${
+        lib.makeLibraryPath [
+          vulkan-loader
+          libGL
+        ]
+      }
   '';
 
   meta = {
