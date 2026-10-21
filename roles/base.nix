@@ -130,6 +130,8 @@ in
       add-zsh-hook precmd set_term_title
 
       REPORTTIME=10
+
+      setopt HIST_IGNORE_SPACE
     '';
 
     promptInit = ''
