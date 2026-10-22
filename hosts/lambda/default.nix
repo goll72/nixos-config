@@ -23,6 +23,7 @@
     ../../modules/base.nix
     ../../modules/server.nix
     ../../modules/hydroxide.nix
+    ../../modules/vpn-dns.nix
     ../../modules/wireguard-vpn.nix
   ];
 
@@ -54,6 +55,9 @@
   ];
 
   networking.hostName = "lambda";
+
+  # The DNS server for the Wireguard VPN; also lambda's own local resolver.
+  services.vpn-dns.enable = true;
 
   # Key-only SSH auth (no password on this host)
   users.users.goll = { };

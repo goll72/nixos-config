@@ -89,6 +89,7 @@ in
 
   services.openssh = {
     enable = true;
+    openFirewall = true;
 
     settings = {
       PasswordAuthentication = false;
@@ -126,6 +127,8 @@ in
       PROMPT='%m:%4~ %# '
     '';
   };
+
+  environment.binsh = "${pkgs.dash}/bin/dash";
 
   # For zsh autocompletion
   environment.pathsToLink = [ "/share/zsh" ];

@@ -1,6 +1,5 @@
 {
   lib,
-  lib',
   config,
   meta,
   ...
@@ -16,14 +15,9 @@ in
 {
   networking.firewall.enable = false;
 
-  # The local resolver prepends 127.0.0.1/::1 to resolv.conf via
-  # openresolv (useLocalResolver is set by the local-dns module).
-  services.local-dns.enable = true;
-  services.knot-zone-watch.enable = true;
-
   environment.enableAllTerminfo = true;
 
-  services.wireguard-vpn = lib'.wireguardVpnPeers "wireguard";
+  services.wireguard-vpn.backend = "wireguard";
 
   services.openiscsi = {
     enable = true;

@@ -1,10 +1,51 @@
-# Placeholder host — not yet configured.
-{ ... }:
+{
+  lib',
+  config,
+  inputs,
+  ...
+}:
 
 {
-  imports = [ ./hardware.nix ];
+  imports = [
+    inputs.disko.nixosModules.disko
+    inputs.sops-nix.nixosModules.sops
+
+    ./disko.nix
+    ./hardware.nix
+    ./packages.nix
+
+    ../../modules/base.nix
+    ../../modules/avatar.nix
+    ../../modules/ipup.nix
+    ../../modules/wireguard-vpn.nix
+  ];
+
+  sops.secrets = {
+    "passwords/goll" = {
+      neededForUsers = true;
+    };
+    "ipup-tsig-key" = {
+      owner = "ipup";
+    };
+    "wg-key" = { };
+  };
 
   networking.hostName = "tau";
+
+  networking.networkmanager.enable = true;
+  networking.modemmanager.enable = false;
+
+  services.ipup = lib'.mkIpupSettings {
+    inherit (config.networking) hostName;
+
+    interface = "enp6s0";
+    ttl = "300s";
+    secret = config.sops.secrets."ipup-tsig-key".path;
+  };
+
+  services.wireguard-vpn.backend = "networkmanager";
+
+  users.users.goll.hashedPasswordFile = config.sops.secrets."passwords/goll".path;
 
   system.stateVersion = "26.11";
 }

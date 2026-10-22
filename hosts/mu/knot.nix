@@ -1,8 +1,8 @@
 { lib', meta, ... }:
 
 let
-  lambda = lib'.toV4 "lambda" "lambda";
-  mu = lib'.toV4 "lambda" "mu";
+  lambda = lib'.toV4 "lambda";
+  mu = lib'.toV4 "mu";
 in
 {
   services.knot = {
@@ -12,8 +12,7 @@ in
       server = {
         # Public service on port 53; port 54 serves the Wireguard
         # VPN address (zone transfers to/peers with lambda ride
-        # that one). The localhost alternative port used by local
-        # clients is added in services.local-dns.
+        # that one).
         listen = [
           "${meta.perHost.mu.privateIP.v4}@53"
           "${meta.perHost.mu.publicIP.v6}@53"

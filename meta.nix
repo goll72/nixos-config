@@ -98,35 +98,21 @@ rec {
     };
   };
 
-  # Two Wireguard networks in a star topology
-  # Each key must correspond to a host key in `meta.perHost`
+  # The Wireguard network in a star topology; `hub` names the hub
+  # host (which must carry a public key in `meta.perHost`).
   wireguard = {
-    lambda = {
-      v4 = {
-        prefix = "10.1.0.";
-        len = 24;
-      };
+    hub = "lambda";
 
-      v6 = {
-        prefix = "fd01::";
-        len = 64;
-      };
-
-      port = 51820;
+    v4 = {
+      prefix = "10.1.0.";
+      len = 24;
     };
 
-    phi = {
-      v4 = {
-        prefix = "10.2.0.";
-        len = 24;
-      };
-
-      v6 = {
-        prefix = "fd02::";
-        len = 64;
-      };
-
-      port = 51820;
+    v6 = {
+      prefix = "fd01::";
+      len = 64;
     };
+
+    port = 51820;
   };
 }
