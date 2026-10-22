@@ -184,11 +184,16 @@ in
 
     boot.supportedFilesystems.nfs = true;
 
+    # No After=vpn-nfs-view.service here: systemd already orders every
+    # automount unit before local-fs.target, so the automounts are armed
+    # before the view comes up (local-fs -> sysinit -> basic -> view).
+    # Adding that edge would close the chain into an ordering cycle, and
+    # it isn't needed anyway: the view's rbind either copies mounts that
+    # already exist or receives later ones via propagation.
     systemd.automounts = map (x: {
       where = "${runPath}/${x}";
 
       wantedBy = [ "multi-user.target" ];
-      after = [ "vpn-nfs-view.service" ];
 
       # Unmount after 15m if mount is unused
       automountConfig.TimeoutIdleSec = "900s";

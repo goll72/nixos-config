@@ -110,6 +110,9 @@ in
 
       networking.search = [ meta.internalDomain ];
 
+      # Does nothing if NetworkManager isn't being used
+      networking.networkmanager.unmanaged = [ interface ];
+
       # In a star topology, the hub will drop packets unless IP forwarding is set
       # up or custom routing is implemented.
       #
