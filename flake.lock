@@ -159,11 +159,11 @@
     },
     "nixos-secrets": {
       "locked": {
-        "lastModified": 1792606331,
-        "narHash": "sha256-AMCXw+rHz59XobPkMkEoJj56IasDa2RRVKKGz92/9Qo=",
+        "lastModified": 1792701169,
+        "narHash": "sha256-6TTBOeWo1o6Psq9YLt5c15dRXTvwB21h2DM4YqE+9zQ=",
         "ref": "refs/heads/main",
-        "rev": "9a6e92e00832aefdb1dac0e5a6c758f27f7ea376",
-        "revCount": 6,
+        "rev": "cb4c0836bb70dce43e98f02e19444aa507b414ce",
+        "revCount": 7,
         "type": "git",
         "url": "file:./secrets"
       },
