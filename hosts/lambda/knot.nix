@@ -59,7 +59,7 @@ let
       [
         "${pkgs.python3}/bin/python3"
         domain
-        (toString config.services.vpn-dns.knotPort)
+        (toString config.services.local-dns.knotPort)
       ]
       (builtins.readFile ./knot-static-plan.py)
   );
@@ -112,11 +112,11 @@ let
 in
 {
   # knot-static-sync (and the ACME RFC2136 client) target the local
-  # knotd on the port owned by the vpn-dns module.
+  # knotd on the port owned by the local-dns module.
   assertions = [
     {
-      assertion = config.services.vpn-dns.enable;
-      message = "knot-static-sync uses services.vpn-dns.knotPort; enable services.vpn-dns.";
+      assertion = config.services.local-dns.enable;
+      message = "knot-static-sync uses services.local-dns.knotPort; enable services.local-dns.";
     }
   ];
 
@@ -174,7 +174,7 @@ in
         # Public service on port 53. The Wireguard VPN addresses are
         # served on port 54 so that the VPN's dnsmasq can own port 53 on
         # the tunnel addresses; that is also where mu pulls its zone
-        # transfers from. We don't declare it here, but services.vpn-dns
+        # transfers from. We don't declare it here, but services.local-dns
         # binds knot to an alternative port on localhost, and it is used for:
         #
         #  - serving authoritative requests for our domain from the local dnsmasq resolver

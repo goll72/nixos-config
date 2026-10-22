@@ -45,6 +45,10 @@
 
   services.wireguard-vpn.backend = "networkmanager";
 
+  services.local-dns = {
+    enable = true;
+  };
+
   users.users.goll.hashedPasswordFile = config.sops.secrets."passwords/goll".path;
 
   system.stateVersion = "26.11";

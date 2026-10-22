@@ -14,8 +14,7 @@ rec {
   toV4 = host: "${meta.wireguard.v4.prefix}${lib.toString meta.perHost.${host}.id}";
   toV6 = host: "${meta.wireguard.v6.prefix}${lib.toHexString meta.perHost.${host}.id}";
 
-  # Settings for the dnsmasq instance of services.vpn-dns, the
-  # Wireguard VPN's DNS server on the hub.
+  # Settings for the dnsmasq instances of services.local-dns.
   dnsmasqCommonSettings = {
     all-servers = true;
     bind-dynamic = true;

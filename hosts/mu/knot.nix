@@ -12,7 +12,8 @@ in
       server = {
         # Public service on port 53; port 54 serves the Wireguard
         # VPN address (zone transfers to/peers with lambda ride
-        # that one).
+        # that one). The localhost alternative port used by local
+        # clients is added in services.local-dns.
         listen = [
           "${meta.perHost.mu.privateIP.v4}@53"
           "${meta.perHost.mu.publicIP.v6}@53"

@@ -60,6 +60,10 @@
 
   services.wireguard-vpn.backend = "networkmanager";
 
+  services.local-dns = {
+    enable = true;
+  };
+
   services.orca.enable = false;
   services.speechd.enable = false;
   services.pipewire.enable = true;

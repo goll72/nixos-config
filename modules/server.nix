@@ -15,6 +15,10 @@ in
 {
   networking.firewall.enable = false;
 
+  # Local dnsmasq resolver; on the hub (lambda) this is also the
+  # VPN's DNS server.
+  services.local-dns.enable = true;
+
   environment.enableAllTerminfo = true;
 
   services.wireguard-vpn.backend = "wireguard";

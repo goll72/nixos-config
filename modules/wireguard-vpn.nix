@@ -10,6 +10,12 @@ let
   cfg = config.services.wireguard-vpn;
 in
 {
+  imports = [
+    # local-dns is an independent leaf module; this module is the only
+    # one that imports it (its hosts are exactly the VPN hosts).
+    ./local-dns.nix
+  ];
+
   options.services.wireguard-vpn = {
     name = lib.mkOption {
       type = lib.types.str;
@@ -35,7 +41,7 @@ in
         The `wireguard` backend uses plain `wg` commands in systemd services
         (uses `services.wireguard.<interface>` internally)
 
-        The `networkmanager` backend uses NetworkManager to manage the Wireguard interface and DNS
+        The `networkmanager` backend uses NetworkManager to manage the Wireguard interface
         (uses `services.networkmanager.ensureProfiles.profiles.<name>` internally)
       '';
     };
@@ -81,12 +87,6 @@ in
       ];
 
       otherHosts = lib.lists.filter (x: x != hub) meta.vpnHosts;
-
-      resolvconfRecord = ''
-        nameserver ${lib'.toV4 hub}
-        nameserver ${lib'.toV6 hub}
-        search ${meta.internalDomain}
-      '';
 
       nmServerOptions = {
         wireguard = {
@@ -148,16 +148,6 @@ in
       };
     in
     {
-      assertions = lib.optionals isWG [
-        {
-          assertion = config.networking.resolvconf.enable;
-          message = ''
-            services.wireguard-vpn: the wireguard backend registers VPN DNS via resolvconf;
-            set networking.resolvconf.enable = true (and do not let another service manage /etc/resolv.conf).
-          '';
-        }
-      ];
-
       sops.templates = lib.mkIf isNM {
         "wireguard-vpn-env".content = ''
           WG_PRIVATE_KEY=${config.sops.placeholder.${privateKeySecret}}
@@ -183,17 +173,11 @@ in
             ipv4 = {
               address1 = "${lib'.toV4 thisHost}/${lib.toString subnets.v4.len}";
               method = "manual";
-
-              dns = lib'.toV4 hub;
-              dns-search = meta.internalDomain;
             };
 
             ipv6 = {
               address1 = "${lib'.toV6 thisHost}/${lib.toString subnets.v6.len}";
               method = "manual";
-
-              dns = lib'.toV6 hub;
-              dns-search = meta.internalDomain;
             };
           }
           // (if isHub then nmServerOptions else nmClientOptions);
@@ -203,20 +187,7 @@ in
       networking.wireguard = lib.mkIf isWG {
         enable = true;
 
-        interfaces.${interface} = {
-          # The wireguard backend does not manage DNS, so feed the
-          # VPN's DNS server to resolvconf ourselves. This is what
-          # the upstream NixOS wireguard module recommends.
-          postSetup = ''
-            printf '%s' ${lib.escapeShellArg resolvconfRecord} \
-              | ${config.networking.resolvconf.package}/bin/resolvconf -a ${interface} -m 0
-          '';
-
-          postShutdown = ''
-            ${config.networking.resolvconf.package}/bin/resolvconf -d ${interface}
-          '';
-        }
-        // (if isHub then wgServerOptions else wgClientOptions);
+        interfaces.${interface} = if isHub then wgServerOptions else wgClientOptions;
       };
 
       networking.firewall = lib.mkIf isHub {
