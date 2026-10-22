@@ -57,13 +57,12 @@
     secret = config.sops.secrets."ipup-tsig-key".path;
   };
 
-  services.vpn.wireguard.backend = "networkmanager";
-
-  services.vpn.nfs.enable = true;
-
-  services.local-dns = {
-    enable = true;
+  services.vpn = {
+    wireguard.enable = true;
+    nfs.enable = true;
   };
+
+  services.local-dns.enable = true;
 
   services.orca.enable = false;
   services.speechd.enable = false;

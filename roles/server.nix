@@ -21,7 +21,7 @@ in
 
   environment.enableAllTerminfo = true;
 
-  services.vpn.wireguard.backend = "wireguard";
+  services.vpn.wireguard.enable = true;
 
   services.openiscsi = {
     enable = true;
