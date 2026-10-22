@@ -19,12 +19,11 @@
     ./desktop.nix
     ./packages.nix
 
-    ../../modules/base.nix
+    ../../roles/base.nix
     ../../modules/avatar.nix
     ../../modules/ipup.nix
-    ../../modules/wireguard-vpn.nix
-
-    ../../modules/nfs-server.nix
+    ../../modules/vpn/wireguard.nix
+    ../../modules/vpn/nfs.nix
   ];
 
   nixpkgs.overlays = [ inputs.nix-firefox-addons.overlays.default ];
@@ -58,7 +57,9 @@
     secret = config.sops.secrets."ipup-tsig-key".path;
   };
 
-  services.wireguard-vpn.backend = "networkmanager";
+  services.vpn.wireguard.backend = "networkmanager";
+
+  services.vpn.nfs.enable = true;
 
   services.local-dns = {
     enable = true;

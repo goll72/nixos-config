@@ -14,14 +14,17 @@
     ./navidrome.nix
     ./nginx.nix
 
-    ../../modules/base.nix
-    ../../modules/server.nix
-    ../../modules/wireguard-vpn.nix
+    ../../roles/base.nix
+    ../../roles/server.nix
+    ../../modules/vpn/wireguard.nix
+    ../../modules/vpn/nfs.nix
   ];
 
   sops.secrets."wg-key" = { };
 
   networking.hostName = "mu";
+
+  services.vpn.nfs.enable = true;
 
   # Key-only SSH auth (no passwords on this host)
   users.users.goll = { };

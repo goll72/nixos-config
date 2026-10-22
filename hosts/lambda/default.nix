@@ -20,10 +20,11 @@
     ./nginx.nix
     ./vaultwarden.nix
 
-    ../../modules/base.nix
-    ../../modules/server.nix
+    ../../roles/base.nix
+    ../../roles/server.nix
     ../../modules/hydroxide.nix
-    ../../modules/wireguard-vpn.nix
+    ../../modules/vpn/wireguard.nix
+    ../../modules/vpn/nfs.nix
   ];
 
   sops.secrets = {
@@ -54,6 +55,8 @@
   ];
 
   networking.hostName = "lambda";
+
+  services.vpn.nfs.enable = true;
 
   # Key-only SSH auth (no password on this host)
   users.users.goll = { };

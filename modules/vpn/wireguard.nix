@@ -7,16 +7,16 @@
 }:
 
 let
-  cfg = config.services.wireguard-vpn;
+  cfg = config.services.vpn.wireguard;
 in
 {
   imports = [
     # local-dns is an independent leaf module; this module is the only
     # one that imports it (its hosts are exactly the VPN hosts).
-    ./local-dns.nix
+    ../local-dns.nix
   ];
 
-  options.services.wireguard-vpn = {
+  options.services.vpn.wireguard = {
     name = lib.mkOption {
       type = lib.types.str;
       default = "${meta.wireguard.hub}.net";
@@ -56,7 +56,7 @@ in
   # NOTE: The top-level config keys below must stay statically known
   # (no cfg-dependent keys, no mkMerge over cfg): collecting the config
   # structure forces them, and reading `cfg` at that point recurses
-  # through `config.services.wireguard-vpn`. The mkIf gates defer the
+  # through `config.services.vpn.wireguard`. The mkIf gates defer the
   # cfg-dependent structure to value forcing, when cfg is resolvable.
   config =
     let
@@ -179,15 +179,11 @@ in
             ipv4 = {
               address1 = "${lib'.toV4 thisHost}/${lib.toString subnets.v4.len}";
               method = "manual";
-
-              dns-search = [ meta.internalDomain ];
             };
 
             ipv6 = {
               address1 = "${lib'.toV6 thisHost}/${lib.toString subnets.v6.len}";
               method = "manual";
-
-              dns-search = [ meta.internalDomain ];
             };
           }
           // (if isHub then nmServerOptions else nmClientOptions);
