@@ -179,11 +179,15 @@ in
             ipv4 = {
               address1 = "${lib'.toV4 thisHost}/${lib.toString subnets.v4.len}";
               method = "manual";
+
+              dns-search = [ meta.internalDomain ];
             };
 
             ipv6 = {
               address1 = "${lib'.toV6 thisHost}/${lib.toString subnets.v6.len}";
               method = "manual";
+
+              dns-search = [ meta.internalDomain ];
             };
           }
           // (if isHub then nmServerOptions else nmClientOptions);
@@ -196,22 +200,21 @@ in
         interfaces.${interface} = if isHub then wgServerOptions else wgClientOptions;
       };
 
-      # XXX:
-      # Star topology: packets between two clients are relayed through the
-      # hub, so it must be allowed to route between tunnel peers. Without
-      # this the hub answers pings itself but drops everything it should
-      # forward. (Hub-only; hubs that forward IPv6 also need accept_ra=2
-      # on their WAN — see hosts/lambda.)
-      # boot.kernel.sysctl = lib.mkIf isHub {
-      # "net.ipv4.ip_forward" = 1;
-      # "net.ipv6.conf.all.forwarding" = 1;
-      # };
+      networking.search = lib.mkIf isWG [ meta.internalDomain ];
+
+      # In a star topology, the hub will drop packets unless IP forwarding is set
+      # up or custom routing is implemented.
+      #
+      # (if forwarding IPv6 accept_ra=2 is also needed on their WAN; see hosts/lambda)
+      boot.kernel.sysctl = lib.mkIf isHub {
+        "net.ipv4.ip_forward" = 1;
+        "net.ipv6.conf.all.forwarding" = 1;
+      };
 
       networking.firewall = lib.mkIf isHub {
         allowedUDPPorts = [ meta.wireguard.port ];
         checkReversePath = "loose";
 
-        # XXX: extend this later
         interfaces.${interface} = {
           allowedUDPPorts = [ 53 ];
           allowedTCPPorts = [ 53 ];

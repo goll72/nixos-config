@@ -111,10 +111,6 @@ in
     # remain in resolv.conf as failure fallback only.
     networking.resolvconf.useLocalResolver = true;
 
-    # The VPN's search domain; the VPN modules themselves carry no
-    # DNS settings anymore.
-    networking.search = [ meta.internalDomain ];
-
     systemd.services.dnsmasq = {
       # NOTE: dnsmasq keeps CAP_NET_BIND_SERVICE after privdrop
       # and requests the dbus interface before privdrop, so there
