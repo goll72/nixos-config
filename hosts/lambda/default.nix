@@ -44,6 +44,13 @@
     preferStaticEmulators = true;
   };
 
+  # XXX:
+  # # The hub forwards IPv6 (wireguard-vpn); with forwarding on, the kernel
+  # # ignores router advertisements at accept_ra=1, which would expire
+  # # enp0s3's RA-provided default route — and thus the WireGuard endpoints
+  # # reachable only over v6.
+  # boot.kernel.sysctl."net.ipv6.conf.enp0s3.accept_ra" = 2;
+
   # NOTE: this is a temporary fix for https://github.com/NixOS/nixpkgs/issues/366902
   nixpkgs.overlays = [
     (final: prev: {

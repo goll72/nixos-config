@@ -27,6 +27,8 @@ in
   time.timeZone = "America/Sao_Paulo";
 
   networking.domain = meta.domain;
+  networking.search = lib.mkAfter [ meta.domain ];
+
   networking.nameservers = [
     "1.1.1.1"
     "9.9.9.9"

@@ -112,6 +112,9 @@ in
         "wireguard-peer.${meta.perHost.${hub}.wireguard}" = {
           allowed-ips = lib.concatStringsSep ";" vpnNet;
           endpoint = "${hub}.${meta.domain}:${lib.toString meta.wireguard.port}";
+          # Keep the client-side NAT mapping alive so the session survives
+          # idle periods and either end can renegotiate.
+          persistent-keepalive = 25;
         };
       };
 
@@ -143,6 +146,9 @@ in
             publicKey = meta.perHost.${hub}.wireguard;
             allowedIPs = vpnNet;
             endpoint = "${hub}.${meta.domain}:${lib.toString meta.wireguard.port}";
+            # Keep the client-side NAT mapping alive so the session survives
+            # idle periods and either end can renegotiate.
+            persistentKeepalive = 25;
           }
         ];
       };
@@ -189,6 +195,17 @@ in
 
         interfaces.${interface} = if isHub then wgServerOptions else wgClientOptions;
       };
+
+      # XXX:
+      # Star topology: packets between two clients are relayed through the
+      # hub, so it must be allowed to route between tunnel peers. Without
+      # this the hub answers pings itself but drops everything it should
+      # forward. (Hub-only; hubs that forward IPv6 also need accept_ra=2
+      # on their WAN — see hosts/lambda.)
+      # boot.kernel.sysctl = lib.mkIf isHub {
+      # "net.ipv4.ip_forward" = 1;
+      # "net.ipv6.conf.all.forwarding" = 1;
+      # };
 
       networking.firewall = lib.mkIf isHub {
         allowedUDPPorts = [ meta.wireguard.port ];
