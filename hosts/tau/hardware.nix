@@ -1,12 +1,16 @@
-# Placeholder host — not yet configured.
-{ ... }:
+{ pkgs, ... }:
 
 {
   boot.loader.systemd-boot.enable = true;
   boot.loader.efi.canTouchEfiVariables = true;
 
-  fileSystems."/" = {
-    device = "/dev/disk/by-label/nixos";
-    fsType = "ext4";
-  };
+  boot.kernelPackages = pkgs.linuxPackages_latest;
+
+  boot.initrd.availableKernelModules = [
+    "kvm-amd"
+    "xhci_pci"
+    "ahci"
+    "usbhid"
+    "sd_mod"
+  ];
 }
