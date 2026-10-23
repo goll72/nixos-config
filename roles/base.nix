@@ -73,6 +73,7 @@ in
     pkgs.helix
     pkgs.htop
     pkgs.mtr
+    pkgs.ncdu
     pkgs.nixd
     pkgs.nixfmt
     pkgs.ripgrep
@@ -105,9 +106,14 @@ in
     };
   };
 
-  programs.ssh.extraConfig = ''
-    SendEnv COLORTERM
-  '';
+  programs.ssh = {
+    agentTimeout = "30m";
+
+    extraConfig = ''
+      VisualHostKey yes
+      SendEnv COLORTERM
+    '';
+  };
 
   programs.zsh = {
     enable = true;

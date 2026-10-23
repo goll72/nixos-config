@@ -105,7 +105,13 @@ in
     {
       networking.wireguard = {
         enable = true;
-        interfaces.${interface} = if isHub then wgServerOptions else wgClientOptions;
+        interfaces.${interface} = {
+          # Some faulty networks (likely using PPP internally and not properly
+          # fragmenting packets or with PMTU discovery not properly set up)
+          # will drop packets that get close to Wireguard's default MTU of 1420.
+          mtu = 1412;
+        }
+        // (if isHub then wgServerOptions else wgClientOptions);
       };
 
       networking.search = [ meta.internalDomain ];

@@ -56,7 +56,10 @@
 
   networking.hostName = "lambda";
 
-  services.vpn.nfs.enable = true;
+  services.vpn = {
+    wireguard.enable = true;
+    nfs.enable = true;
+  };
 
   # Key-only SSH auth (no password on this host)
   users.users.goll = { };
