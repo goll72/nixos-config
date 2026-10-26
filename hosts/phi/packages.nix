@@ -7,6 +7,7 @@
     pkgs.gh
     pkgs.hyperfine
     pkgs.jq
+    pkgs.llama-cpp-vulkan
     pkgs.ldns
     pkgs.nh
     pkgs.nvtopPackages.intel

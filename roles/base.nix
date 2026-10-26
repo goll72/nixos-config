@@ -26,6 +26,8 @@ in
 {
   time.timeZone = "America/Sao_Paulo";
 
+  boot.tmp.cleanOnBoot = true;
+
   networking.domain = meta.domain;
   networking.search = lib.mkAfter [ meta.domain ];
 
@@ -161,6 +163,5 @@ in
   # (private keys compromised); remove once nss-cacert drops them upstream.
   security.pki.caCertificateBlacklist = [
     "Comodo AAA Services root"
-    "emSign ECC Root CA - G3"
   ];
 }
