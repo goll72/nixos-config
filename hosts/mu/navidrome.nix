@@ -9,7 +9,7 @@
     enable = true;
 
     settings = {
-      MusicFolder = "/var/lib/music";
+      MusicFolder = "/srv/nfs/music";
       FFmpegPath = "${pkgs.ffmpeg-headless}/bin/ffmpeg";
       BaseUrl = "https://mu.${meta.domain}";
     };
