@@ -98,6 +98,12 @@ rec {
     };
   };
 
+  # Subdomains that will be set up as CNAME aliases for each host.
+  sub = {
+    vault = "lambda";
+    media = "tau";
+  };
+
   # The Wireguard network in a star topology; `hub` names the hub
   # host (which must carry a public key in `meta.perHost`).
   wireguard = {
