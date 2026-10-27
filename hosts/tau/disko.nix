@@ -33,5 +33,23 @@
         };
       };
     };
+    tank = {
+      device = "/dev/disk/by-id/wwn-0x50014ee2ba7558f6";
+      type = "disk";
+      content = {
+        type = "gpt";
+        partitions = {
+          unit = {
+            size = "100%";
+            content = {
+              type = "btrfs";
+              extraArgs = [ "-f" ];
+              mountpoint = "/tank";
+              mountOptions = [ "nofail" "compress=zstd:5" ];
+            };
+          };
+        };
+      };
+    };
   };
 }

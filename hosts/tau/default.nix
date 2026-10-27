@@ -51,6 +51,18 @@
 
   services.local-dns.enable = true;
 
+  systemd.mounts = let
+    tankMount = {
+      what = "/tank";
+      where = "/srv/nfs/tank";
+      type = "none";
+      options = "bind,nofail";
+
+      wants = [ "tank.mount" ];
+      after = [ "tank.mount" ];
+    };
+  in [ tankMount ];
+
   users.users.goll.hashedPasswordFile = config.sops.secrets."passwords/goll".path;
 
   system.stateVersion = "26.11";
