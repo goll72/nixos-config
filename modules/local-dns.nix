@@ -87,23 +87,25 @@ in
       # /etc/resolv.conf, which would loop back into this instance.
       resolveLocalQueries = false;
 
-      settings =
-        lib'.dnsmasqCommonSettings
-        // {
-          listen-address = [
-            "127.0.0.1"
-            "::1"
-          ]
-          ++ lib.optionals isHub hubAddresses;
+      settings = lib'.dnsmasqCommonSettings // {
+        listen-address = [
+          "127.0.0.1"
+          "::1"
+        ]
+        ++ lib.optionals isHub hubAddresses;
 
-          no-resolv = true;
+        no-resolv = true;
+        server = config.networking.nameservers ++ domainUpstreams ++ internalUpstreams;
 
-          server = config.networking.nameservers ++ domainUpstreams ++ internalUpstreams;
-        }
-        // lib.optionalAttrs isHub {
-          local = [ "/${meta.internalDomain}/" ];
-          addn-hosts = toString internalHostsFile;
-        };
+        local = lib.optional isHub "/${meta.internalDomain}";
+
+        addn-hosts = [
+          "/var/lib/dnsmasq/hosts"
+        ]
+        ++ lib.optional isHub (lib.toString internalHostsFile);
+
+        dhcp-leasefile = "/var/lib/dnsmasq/leases";
+      };
     };
 
     # Prepends localhost to whatever else is learned, so

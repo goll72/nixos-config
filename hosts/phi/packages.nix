@@ -31,8 +31,8 @@
       pkgs.gh
       pkgs.hyperfine
       pkgs.jq
+      pkgs.knot-dns
       pkgs.llama-cpp-vulkan
-      pkgs.ldns
       pkgs.nh
       pkgs.nvtopPackages.intel
       pkgs.perf

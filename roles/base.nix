@@ -10,7 +10,7 @@
 }:
 
 let
-  hostName = config.networking.hostName;
+  inherit (config.networking) hostName;
 
   # NOTE: Authorized keys for the main user (goll) on each host: the keys every
   # other host uses to reach this one (`meta.perHost.<other>.ssh.<thisHost>`)
@@ -30,6 +30,9 @@ in
 
   networking.domain = meta.domain;
   networking.search = lib.mkAfter [ meta.domain ];
+
+  # Remove the 127.0.0.2 entries for the local hostname
+  networking.hosts."127.0.0.2" = lib.mkForce [ ];
 
   networking.nameservers = [
     "1.1.1.1"
