@@ -66,8 +66,8 @@
             ];
             blame-separator-format = quote "{n:5}▒";
 
-            merge-conflict-begin-symbol = quote "~";
-            merge-conflict-end-symbol = quote "~";
+            merge-conflict-begin-symbol = "~";
+            merge-conflict-end-symbol = "~";
             merge-conflict-ours-diff-header-style = "${quote "#F1FA8C"} bold";
             merge-conflict-ours-diff-header-decoration-style = "${quote "#434C5E"} box";
             merge-conflict-theirs-diff-header-style = "${quote "#F1FA8C"} bold";
