@@ -16,6 +16,8 @@
     ./ssh.nix
     ./zellij.nix
     ./zsh.nix
+
+    ../../../modules/home/zerostack.nix
   ];
 
   home.username = "goll";

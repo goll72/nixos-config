@@ -148,6 +148,17 @@ in
   sops.age.keyFile = "/var/lib/sops-nix/keys.txt";
   sops.defaultSopsFile = inputs.nixos-secrets.lib.secrets.perHost.${hostName};
 
+  sops.secrets =
+    let
+      shared = {
+        sopsFile = inputs.nixos-secrets.lib.secrets.shared;
+      };
+    in
+    {
+      # Empty shared secret, used for demonstration purposes
+      "shared-secret" = { } // shared;
+    };
+
   users.mutableUsers = false;
 
   users.users.goll = {

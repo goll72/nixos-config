@@ -1,5 +1,4 @@
 {
-  lib,
   lib',
   config,
   inputs,
@@ -33,9 +32,15 @@
     "passwords/goll" = {
       neededForUsers = true;
     };
+
     "ipup-tsig-key" = {
       owner = "ipup";
     };
+
+    "openrouter-api-key" = {
+      owner = "goll";
+    };
+
     "wg-key" = { };
   };
 

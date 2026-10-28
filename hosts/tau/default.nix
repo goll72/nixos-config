@@ -25,9 +25,11 @@
     "passwords/goll" = {
       neededForUsers = true;
     };
+
     "ipup-tsig-key" = {
       owner = "ipup";
     };
+
     "wg-key" = { };
   };
 
