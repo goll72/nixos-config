@@ -16,6 +16,7 @@
 
     ../../roles/base.nix
     ../../modules/avatar.nix
+    ../../modules/fan2go.nix
     ../../modules/ipup.nix
     ../../modules/vpn/wireguard.nix
     ../../modules/vpn/nfs.nix
@@ -53,17 +54,19 @@
 
   services.local-dns.enable = true;
 
-  systemd.mounts = let
-    tankMount = {
-      what = "/tank";
-      where = "/srv/nfs/tank";
-      type = "none";
-      options = "bind,nofail";
+  systemd.mounts =
+    let
+      tankMount = {
+        what = "/tank";
+        where = "/srv/nfs/tank";
+        type = "none";
+        options = "bind,nofail";
 
-      wants = [ "tank.mount" ];
-      after = [ "tank.mount" ];
-    };
-  in [ tankMount ];
+        wants = [ "tank.mount" ];
+        after = [ "tank.mount" ];
+      };
+    in
+    [ tankMount ];
 
   users.users.goll.hashedPasswordFile = config.sops.secrets."passwords/goll".path;
 
