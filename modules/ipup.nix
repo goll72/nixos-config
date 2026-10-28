@@ -7,7 +7,7 @@
 
 let
   cfg = config.services.ipup;
-  format = pkgs.formats.ini { };
+  ini = pkgs.formats.ini { };
 
   serverSections = lib.mapAttrs' (
     name: srv:
@@ -209,7 +209,7 @@ in
       group = "ipup";
     };
 
-    environment.etc."ipup/conf".source = format.generate "ipup.conf" (serverSections // ifaceSections);
+    environment.etc."ipup/conf".source = ini.generate "ipup.conf" (serverSections // ifaceSections);
 
     # For manual oneshot runs (ipup -o).
     environment.systemPackages = [ cfg.package ];

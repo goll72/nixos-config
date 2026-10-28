@@ -1,4 +1,4 @@
-{ lib, config }:
+{ lib, config, ... }:
 
 {
   environment.systemPackages = [
@@ -8,7 +8,7 @@
   services.fan2go = {
     enable = true;
 
-    config = {
+    settings = {
       fans = [
         {
           id = "cpu";
@@ -22,6 +22,7 @@
           neverStop = true;
           curve = "cpu";
         }
+        
         {
           id = "gpu";
 
@@ -43,8 +44,9 @@
         [
           {
             id = "cpu";
+            
             linear = {
-              sensor = "temp1_input";
+              sensor = "cpu";
 
               steps = [
                 (p 30 "0%")
@@ -55,10 +57,12 @@
               ];
             };
           }
+          
           {
             id = "gpu";
+            
             linear = {
-              sensor = "temp1_input";
+              sensor = "gpu";
 
               steps = [
                 (p 30 "0%")
@@ -69,6 +73,26 @@
             };
           }
         ];
+
+      sensors = [
+        {
+          id = "cpu";
+          
+          hwmon = {
+            platform = "k10temp-pci-00c3";
+            index = 1;
+          };
+        }
+        
+        {
+          id = "gpu";
+          
+          hwmon = {
+            platform = "amdgpu-pci-0100";
+            index = 1;
+          };
+        }
+      ];
     };
   };
 }

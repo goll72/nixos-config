@@ -8,9 +8,8 @@
 let
   cfg = config.services.fan2go;
 
-  fan2goConfigFile = cfg.configFile or "/etc/fan2go/fan2go.yaml";
-
-  configText = lib.optionalString (!lib.isNull cfg.config) (pkgs.formats.yaml cfg.config);
+  yaml = pkgs.formats.yaml {};
+  configFile = yaml.generate "fan2go.yaml" cfg.settings;
 in
 {
   options.services.fan2go = {
@@ -18,13 +17,7 @@ in
 
     package = lib.mkPackageOption pkgs "fan2go" { };
 
-    configFile = lib.mkOption {
-      type = lib.types.str;
-      default = "/etc/fan2go/fan2go.yaml";
-      description = "Path to the fan2go YAML configuration file.";
-    };
-
-    config = lib.mkOption {
+    settings = lib.mkOption {
       type = lib.types.attrsOf lib.types.anything;
       default = { };
       description = ''
@@ -40,11 +33,13 @@ in
   };
 
   config = lib.mkIf cfg.enable {
-    environment.etc."fan2go/fan2go.yaml".text = configText;
+    system.activationScripts.fan2go.text = ''
+      mkdir -p /var/lib/fan2go
+    '';
 
     systemd.services.fan2go = {
       description = "fan2go hardware fan control daemon";
-      documentation = "https://github.com/markusressel/fan2go";
+      documentation = [ "https://github.com/markusressel/fan2go" ];
 
       after = [ "lm-sensors.service" ];
       wants = [ "network-online.target" ];
@@ -53,12 +48,14 @@ in
       serviceConfig = {
         Type = "simple";
         ExecStart =
-          lib.concatStringsSep " " [
-            (lib.getExe pkgs.fan2go)
-            "-c"
-            fan2goConfigFile
-          ]
-          ++ (lib.optionalString "--no-style");
+          lib.concatStringsSep " " (
+            [
+              (lib.getExe pkgs.fan2go)
+              "-c"
+              configFile
+            ]
+            ++ lib.optional cfg.noStyle "--no-style"
+          );
 
         NoNewPrivileges = true;
         PrivateTmp = true;
@@ -91,6 +88,8 @@ in
           "/sys/class/hwmon"
           "/sys/class/thermal"
           "/sys/devices"
+          
+          "/var/lib/fan2go"
         ];
 
         ReadOnlyPaths = [

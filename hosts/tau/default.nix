@@ -14,6 +14,8 @@
     ./hardware.nix
     ./packages.nix
 
+    ./fan2go.nix
+
     ../../roles/base.nix
     ../../modules/avatar.nix
     ../../modules/fan2go.nix
