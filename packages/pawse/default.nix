@@ -26,13 +26,13 @@
 
 rustPlatform.buildRustPackage (finalAttrs: {
   pname = "pawse";
-  version = "0.9.1";
+  version = "0.9.5";
 
   src = fetchFromGitHub {
     owner = "popovpsk";
     repo = "pawse";
     tag = "v${finalAttrs.version}";
-    hash = "sha256-lRlUuyyX/w3UZbOZgsm+d5b+R5B0VRt72NIRD9gFmJ4=";
+    hash = "sha256-AcR3o6iT1JYQp7pSKdG4wlJSAnbSEmW7PlAWsWoC6As=";
   };
 
   patches = [
@@ -40,9 +40,7 @@ rustPlatform.buildRustPackage (finalAttrs: {
     ./0001-allow-512m-network-cache-limit.patch
   ];
 
-  # Vendored from the pinned upstream source so that evaluating this package
-  # does not need to realize the fetchFromGitHub output (import-from-derivation).
-  cargoLock.lockFile = ./Cargo.lock;
+  cargoHash = "sha256-g2r3skfEOsjQ3XhUeOF/DyKqDQNh4SG7j38qtBkXmn0=";
 
   # The remote-control web UI is embedded into the binary via rust-embed and must be
   # built before cargo, or the embedded assets are empty.
