@@ -11,13 +11,13 @@ let
 in
 {
   options.programs.zerostack = {
-    enable = lib.mkEnableOption "ZeroStack";
+    enable = lib.mkEnableOption "zerostack, a lightweight coding agent written in Rust";
 
     settings = lib.mkOption {
       type = toml.type;
       default = { };
       description = ''
-        ZeroStack configuration, serialized to TOML.
+        zerostack configuration, serialized to TOML.
       '';
       example = {
         provider = "llama-local";
@@ -34,6 +34,6 @@ in
   };
 
   config = lib.mkIf cfg.enable {
-    xdg.configFile."zerostack/config.toml".source = toml.generate "zerostack-config.toml" cfg.settings;
+    xdg.dataFile."zerostack/config.toml".source = toml.generate "zerostack-config.toml" cfg.settings;
   };
 }

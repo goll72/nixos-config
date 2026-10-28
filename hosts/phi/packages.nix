@@ -10,7 +10,10 @@
     let
       var = x: lib.toUpper (builtins.replaceStrings [ "-" ] [ "_" ] x);
 
-      api-keys = [ "openrouter-api-key" ];
+      api-keys = [
+        "openrouter-api-key"
+        "local-llm-api-key"
+      ];
 
       zerostack-with-api-keys = pkgs.writeShellApplication {
         name = "zerostack";

@@ -157,6 +157,11 @@ in
     {
       # Empty shared secret, used for demonstration purposes
       "shared-secret" = { } // shared;
+
+      "local-llm-api-key" = {
+        owner = "goll";
+      }
+      // shared;
     };
 
   users.mutableUsers = false;

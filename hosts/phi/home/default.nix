@@ -15,6 +15,7 @@
     ./seekey.nix
     ./ssh.nix
     ./zellij.nix
+    ./zerostack.nix
     ./zsh.nix
 
     ../../../modules/home/zerostack.nix
@@ -57,25 +58,9 @@
     platformTheme.name = "adwaita";
   };
 
-  programs.htop = {
-    enable = true;
-
-    settings = {
-      # ...
-    };
-  };
-
-  programs.yt-dlp = {
-    enable = true;
-
-    # ...
-  };
-
-  programs.zsh = {
-    enable = true;
-
-    # ...
-  };
+  programs.htop.enable = true;
+  programs.yt-dlp.enable = true;
+  programs.zsh.enable = true;
 
   home.stateVersion = "26.11";
 }

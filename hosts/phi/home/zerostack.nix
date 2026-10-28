@@ -18,6 +18,7 @@
       custom_providers.local = {
         provider_type = "openai";
         base_url = "http://localhost:9931/v1";
+        api_key_env = "LOCAL_LLM_API_KEY";
       };
 
       permission = {
