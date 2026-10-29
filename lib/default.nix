@@ -5,14 +5,18 @@
 rec {
   # Every known VPN host under the VPN's addressing, so e.g.
   # phi.internal resolves to all of phi's tunnel addresses (v4 and v6).
+  #
+  # NOTE: Every VPN host gets a ULA domain, but obviously
+  # hosts can be assigned ULAs without being part of the VPN.
   internalHosts = lib.concatMapStrings (host: ''
-    ${toV4 host} ${host}.${meta.internalDomain}
-    ${toV6 host} ${host}.${meta.internalDomain}
+    ${toV4 "wireguard" host} ${host}.${meta.internalDomain}
+    ${toV6 "wireguard" host} ${host}.${meta.internalDomain}
+    ${toV6 "local" host} ula.${host}.${meta.internalDomain}
   '') meta.vpnHosts;
 
   # Functions used to convert host names to their VPN addresses
-  toV4 = host: "${meta.wireguard.v4.prefix}${lib.toString meta.perHost.${host}.id}";
-  toV6 = host: "${meta.wireguard.v6.prefix}${lib.toHexString meta.perHost.${host}.id}";
+  toV4 = net: host: "${meta.${net}.v4.prefix}${lib.toString meta.perHost.${host}.id}";
+  toV6 = net: host: "${meta.${net}.v6.prefix}${lib.toHexString meta.perHost.${host}.id}";
 
   # Settings for the dnsmasq instances of services.local-dns.
   dnsmasqCommonSettings = {

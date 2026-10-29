@@ -104,21 +104,29 @@ in
         enable = true;
         hostName = "${thisHost}.${meta.internalDomain}";
 
-        exports.${cfg.exportPath} = lib.attrsets.mergeAttrsList (
-          map (x: {
-            "${x}.${meta.internalDomain}" = [
+        exports.${cfg.exportPath} =
+          let
+            options = [
               "fsid=0"
               "rw"
               "insecure"
               "crossmnt"
             ];
-          }) meta.vpnHosts
-        );
+
+            vpnHosts = map (x: {
+              "${x}.${meta.internalDomain}" = options;
+            }) meta.vpnHosts;
+
+            localHosts = {
+              "${meta.local.v6.prefix}/${lib.toString meta.local.v6.len}" = options;
+            };
+          in
+          lib.attrsets.mergeAttrsList (vpnHosts ++ [ localHosts ]);
       };
 
       settings = {
         nfsd = {
-          nfsv3 = false;
+          nfsv3 = lib.mkForce false;
           nfsv4 = true;
         };
       };
@@ -177,10 +185,7 @@ in
       };
     };
 
-    networking.firewall.interfaces.${wg.interface} = {
-      allowedTCPPorts = [ 2049 ];
-      allowedUDPPorts = [ 2049 ];
-    };
+    networking.firewall.allowedTCPPorts = [ 2049 ];
 
     boot.supportedFilesystems.nfs = true;
 

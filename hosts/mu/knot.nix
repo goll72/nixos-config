@@ -1,8 +1,8 @@
 { lib', meta, ... }:
 
 let
-  lambda = lib'.toV4 "lambda";
-  mu = lib'.toV4 "mu";
+  lambda = lib'.toV4 "wireguard" "lambda";
+  mu = lib'.toV4 "wireguard" "mu";
 in
 {
   services.knot = {

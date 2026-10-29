@@ -29,8 +29,8 @@ let
 
   # The tunnel addresses of the hub: the VPN's DNS server.
   hubAddresses = [
-    (lib'.toV4 hub)
-    (lib'.toV6 hub)
+    (lib'.toV4 "wireguard" hub)
+    (lib'.toV6 "wireguard" hub)
   ];
 
   # Away from the hub, internal queries are forwarded to the hub's

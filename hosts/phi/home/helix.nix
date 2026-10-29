@@ -90,7 +90,7 @@
               # path lands in the generated config verbatim, keeping the
               # source alive through closure reference scanning) instead of
               # a machine-specific checkout path.
-              here = "(builtins.getFlake ${builtins.toJSON (toString inputs.self)})";
+              here = "(builtins.getFlake ${builtins.toJSON (lib.toString inputs.self)})";
               nixosOpts = "${here}.nixosConfigurations.${osConfig.networking.hostName}.options";
             in
             {

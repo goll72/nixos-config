@@ -22,9 +22,10 @@
 
     ../../roles/base.nix
     ../../roles/server.nix
+
     ../../modules/hydroxide.nix
-    ../../modules/vpn/wireguard.nix
-    ../../modules/vpn/nfs.nix
+    ../../modules/nfs.nix
+    ../../modules/wireguard.nix
   ];
 
   sops.secrets = {

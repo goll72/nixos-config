@@ -1,4 +1,5 @@
 {
+  lib,
   config,
   meta,
   ...
@@ -24,7 +25,7 @@ let
     }
     .${bind} or (if builtins.match ".*:.*" bind != null then "[${bind}]" else bind);
 
-  vaultwardenUpstream = "http://${upstreamHost}:${toString port}";
+  vaultwardenUpstream = "http://${upstreamHost}:${lib.toString port}";
 in
 {
   services.nginx = {

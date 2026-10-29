@@ -10,8 +10,8 @@
 let
   domain = meta.domain;
 
-  lambda = lib'.toV4 "lambda";
-  mu = lib'.toV4 "mu";
+  lambda = lib'.toV4 "wireguard" "lambda";
+  mu = lib'.toV4 "wireguard" "mu";
 
   # Keymgr must parse the same config knotd uses (it needs the database
   # section to find the KASP db). The module exposes the rendered config

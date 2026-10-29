@@ -1,4 +1,5 @@
 {
+  lib,
   config,
   meta,
   ...
@@ -14,7 +15,7 @@
   ];
 
   sops.templates."acme-env".content = ''
-    RFC2136_NAMESERVER=127.0.0.1:${toString config.services.local-dns.knotPort}
+    RFC2136_NAMESERVER=127.0.0.1:${lib.toString config.services.local-dns.knotPort}
     RFC2136_TSIG_KEY=acme
     RFC2136_TSIG_ALGORITHM=hmac-sha512.
     RFC2136_TSIG_SECRET=${config.sops.placeholder."acme-tsig-key"}

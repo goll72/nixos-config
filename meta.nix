@@ -121,4 +121,10 @@ rec {
 
     port = 51820;
   };
+
+  # Local networks
+  local.v6 = {
+    prefix = "fd00::";
+    len = 64;
+  };
 }

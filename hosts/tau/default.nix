@@ -20,8 +20,9 @@
     ../../modules/avatar.nix
     ../../modules/fan2go.nix
     ../../modules/ipup.nix
-    ../../modules/vpn/wireguard.nix
-    ../../modules/vpn/nfs.nix
+
+    ../../modules/nfs.nix
+    ../../modules/wireguard.nix
   ];
 
   sops.secrets = {

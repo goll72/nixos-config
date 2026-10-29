@@ -16,8 +16,9 @@
 
     ../../roles/base.nix
     ../../roles/server.nix
-    ../../modules/vpn/wireguard.nix
-    ../../modules/vpn/nfs.nix
+
+    ../../modules/nfs.nix
+    ../../modules/wireguard.nix
   ];
 
   sops.secrets."wg-key" = { };

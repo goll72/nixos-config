@@ -13,7 +13,7 @@ in
   imports = [
     # local-dns is an independent leaf module; this module is the only
     # one that imports it (its hosts are exactly the VPN hosts).
-    ../local-dns.nix
+    ./local-dns.nix
   ];
 
   options.services.vpn.wireguard = {
@@ -55,8 +55,8 @@ in
       subnets = meta.wireguard;
 
       getIPsForHost = x: [
-        "${lib'.toV4 x}/32"
-        "${lib'.toV6 x}/128"
+        "${lib'.toV4 "wireguard" x}/32"
+        "${lib'.toV6 "wireguard" x}/128"
       ];
 
       # The whole VPN under its v4 and v6 addressing.
@@ -71,8 +71,8 @@ in
         privateKeyFile = config.sops.secrets.${privateKeySecret}.path;
 
         ips = [
-          "${lib'.toV4 hub}/${lib.toString subnets.v4.len}"
-          "${lib'.toV6 hub}/${lib.toString subnets.v6.len}"
+          "${lib'.toV4 "wireguard" hub}/${lib.toString subnets.v4.len}"
+          "${lib'.toV6 "wireguard" hub}/${lib.toString subnets.v6.len}"
         ];
 
         peers = map (x: {

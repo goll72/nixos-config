@@ -1,4 +1,9 @@
-{ config, meta, ... }:
+{
+  lib,
+  config,
+  meta,
+  ...
+}:
 
 let
   navidrome = config.services.navidrome;
@@ -19,7 +24,7 @@ in
         "mu.${meta.domain}" = {
           enableACME = true;
           locations."/".proxyPass =
-            "http://${navidrome.settings.Address}:${toString navidrome.settings.Port}";
+            "http://${navidrome.settings.Address}:${lib.toString navidrome.settings.Port}";
         }
         // common;
       };

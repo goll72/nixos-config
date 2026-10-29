@@ -20,10 +20,11 @@
     ./packages.nix
 
     ../../roles/base.nix
+
     ../../modules/avatar.nix
     ../../modules/ipup.nix
-    ../../modules/vpn/wireguard.nix
-    ../../modules/vpn/nfs.nix
+    ../../modules/nfs.nix
+    ../../modules/wireguard.nix
   ];
 
   nixpkgs.overlays = [ inputs.nix-firefox-addons.overlays.default ];
