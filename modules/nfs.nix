@@ -102,7 +102,6 @@ in
     services.nfs = {
       server = {
         enable = true;
-        hostName = "${thisHost}.${meta.internalDomain}";
 
         exports.${cfg.exportPath} =
           let

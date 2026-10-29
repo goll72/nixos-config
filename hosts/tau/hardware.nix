@@ -14,6 +14,9 @@
     "sd_mod"
   ];
 
+  # Prevent fan2go failing at boot due to not finding the AMDGPU hwmon device
+  hardware.amdgpu.initrd.enable = true;
+
   hardware.graphics.enable = true;
 
   hardware.enableRedistributableFirmware = true;

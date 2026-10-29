@@ -68,12 +68,23 @@
         wants = [ "tank.mount" ];
         after = [ "tank.mount" ];
 
+        before = [ "data.mount" ];
+
         wantedBy = [ "local-fs.target" ];
       };
     in
     [ tankMount ];
 
   users.users.goll.hashedPasswordFile = config.sops.secrets."passwords/goll".path;
+
+  console.earlySetup = true;
+  console.useXkbConfig = true;
+  console.font = "Lat2-Terminus16";
+
+  services.xserver = {
+    xkb.layout = "br";
+    xkb.variant = "abnt";
+  };
 
   system.stateVersion = "26.11";
 }
