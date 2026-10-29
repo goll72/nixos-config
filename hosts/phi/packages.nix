@@ -31,7 +31,6 @@
       pkgs.gh
       pkgs.hyperfine
       pkgs.jq
-      pkgs.knot-dns
       pkgs.llama-cpp-vulkan
       pkgs.nh
       pkgs.nvtopPackages.intel

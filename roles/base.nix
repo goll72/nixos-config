@@ -77,6 +77,7 @@ in
     pkgs.git
     pkgs.helix
     pkgs.htop
+    pkgs.knot-dns
     pkgs.mtr
     pkgs.ncdu
     pkgs.nixd
