@@ -19,6 +19,8 @@ let
   knotConf = config.environment.etc."knot/knot.conf".source;
   keymgr = "${config.services.knot.package}/bin/keymgr";
 
+  subToHost = lib.attrsets.mapAttrsToList (sub: host: { inherit sub host; }) meta.sub;
+
   # Declarative source of truth for the static records. knotd never reads
   # this file; static-sync pushes it into the zone via RFC 2136 updates,
   # carrying over nothing because dynamic records live at disjoint names.
@@ -40,7 +42,9 @@ let
     mu.${domain}. 3600 IN A ${meta.perHost.mu.publicIP.v4}
     mu.${domain}. 3600 IN AAAA ${meta.perHost.mu.publicIP.v6}
 
-    vault.${domain}. 3600 IN CNAME ${domain}.
+    ${lib.concatMapStringsSep "\n" (
+      { sub, host }: "${sub}.${domain}. 3600 IN CNAME ${host}.${domain}."
+    ) subToHost}
   '';
 
   # Prints the RFC 2136 update batch that turns the currently applied
