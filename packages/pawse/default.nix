@@ -98,12 +98,13 @@ rustPlatform.buildRustPackage (finalAttrs: {
     install -Dm644 crates/ui_resources/assets/app-icon/256x256.png \
       $out/share/icons/hicolor/256x256/apps/io.github.popovpsk.pawse.png
 
-    # GPUI dlopens libvulkan and libGL at runtime for rendering.
+    # GPUI dlopens libvulkan, libGL and libwayland at runtime for rendering.
     wrapProgram $out/bin/pawse \
       --suffix LD_LIBRARY_PATH : ${
         lib.makeLibraryPath [
           vulkan-loader
           libGL
+          wayland
         ]
       }
   '';
