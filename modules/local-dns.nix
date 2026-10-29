@@ -97,7 +97,7 @@ in
         no-resolv = true;
         server = config.networking.nameservers ++ domainUpstreams ++ internalUpstreams;
 
-        local = lib.optional isHub "/${meta.internalDomain}";
+        local = lib.optional isHub "/${meta.internalDomain}/";
 
         addn-hosts = [
           "/var/lib/dnsmasq/hosts"
