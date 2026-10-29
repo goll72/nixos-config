@@ -67,6 +67,8 @@
 
         wants = [ "tank.mount" ];
         after = [ "tank.mount" ];
+
+        wantedBy = [ "local-fs.target" ];
       };
     in
     [ tankMount ];
