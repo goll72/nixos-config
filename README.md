@@ -63,6 +63,13 @@ To edit/add secrets, you can run e.g.
 sudo env SOPS_AGE_KEY_FILE=/var/lib/sops-nix/keys.txt sops edit secrets/secrets.yaml
 ```
 
+## mu, tau
+
+Since these hosts acquire their TLS certificates using HTTP-01 challenges, they have
+to be capable of accepting HTTP requests when they don't have a certificate issued
+for them yet, so you may have to temporarily disable `forceSSL` when obtaining the
+certificates for the first time.
+
 ---
 
 > [!NOTE]

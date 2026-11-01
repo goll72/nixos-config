@@ -14,7 +14,10 @@
     ./hardware.nix
     ./packages.nix
 
+    ./acme.nix
     ./fan2go.nix
+    ./immich.nix
+    ./nginx.nix
 
     ../../roles/base.nix
     ../../modules/avatar.nix
