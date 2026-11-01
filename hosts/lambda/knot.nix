@@ -91,16 +91,14 @@ let
 
   # ACLs for the three classes of update writer. Everything not matched
   # here is refused.
-  staticOwners = [
+  staticOwners =
+  let
+    base = [ "ns1" "ns2" "lambda" "mu" ];
+  in
+  [
     "${domain}."
   ]
-  ++ map (x: "${x}.${domain}.") [
-    "ns1"
-    "ns2"
-    "lambda"
-    "mu"
-    "vault"
-  ];
+  ++ map (x: "${x}.${domain}.") (base ++ builtins.attrNames meta.sub);
 
   dynamicAcls = lib.listToAttrs (
     map (x: {
