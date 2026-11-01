@@ -52,4 +52,31 @@ in
       };
     }
   ];
+
+  # Disable PipeWire for the gdm-greeter user
+  #
+  # NOTE: This PipeWire instance keeps segfaulting
+  # and doesn't seem to be very useful otherwise
+  systemd.user.services = {
+    pipewire.unitConfig.ConditionUser = "!gdm-greeter";
+    pipewire-pulse.unitConfig.ConditionUser = "!gdm-greeter";
+    wireplumber.unitConfig.ConditionUser = "!gdm-greeter";
+  };
+
+  systemd.user.sockets = {
+    pipewire.unitConfig.ConditionUser = "!gdm-greeter";
+    pipewire-pulse.unitConfig.ConditionUser = "!gdm-greeter";
+  };
+
+  # XXX: Add log filters to work around https://github.com/NixOS/nixpkgs/issues/303078
+  systemd.services = {
+    dbus-broker.serviceConfig.LogFilterPatterns = [
+      "~^Ignoring duplicate name"
+    ];
+
+    "user@" = {
+      overrideStrategy = "asDropin";
+      serviceConfig.LogFilterPatterns = "~^Ignoring duplicate name";
+    };
+  };
 }

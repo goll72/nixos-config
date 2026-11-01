@@ -14,6 +14,13 @@
     "sd_mod"
   ];
 
+  # XXX: Workaround for nixpkgs packaging oversight after systemd v262 update,
+  # now requiring the systemd-pcrextend socket to be enabled for PCR extension
+  # in the initrd to work properly
+  #
+  # Remove once https://github.com/NixOS/nixpkgs/pull/581067 is merged
+  boot.initrd.systemd.sockets.systemd-pcrextend.wantedBy = [ "sockets.target" ];
+
   boot.kernelPackages = pkgs.linuxPackages_latest;
 
   boot.lanzaboote = {
