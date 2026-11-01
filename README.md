@@ -55,6 +55,17 @@ The DNS server and VPN settings, unfortunately, have an interdependency, so you 
 have to temporarily set mu's DNS server to lambda's public IPv4 address so that it
 can connect to the VPN. 
 
+## mu, tau
+
+Since these hosts acquire their TLS certificates using HTTP-01 challenges, they have
+to be capable of accepting HTTP requests when they don't have a certificate issued
+for them yet, so you may have to temporarily disable `forceSSL` when obtaining the
+certificates for the first time.
+
+## tau
+
+You may need to create `/tank/immich` manually (can't be easily done in an activation script).
+
 # Secrets
 
 To edit/add secrets, you can run e.g.
@@ -62,13 +73,6 @@ To edit/add secrets, you can run e.g.
 ```sh
 sudo env SOPS_AGE_KEY_FILE=/var/lib/sops-nix/keys.txt sops edit secrets/secrets.yaml
 ```
-
-## mu, tau
-
-Since these hosts acquire their TLS certificates using HTTP-01 challenges, they have
-to be capable of accepting HTTP requests when they don't have a certificate issued
-for them yet, so you may have to temporarily disable `forceSSL` when obtaining the
-certificates for the first time.
 
 ---
 
