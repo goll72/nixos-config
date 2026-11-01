@@ -77,6 +77,10 @@ in
       button-layout = "appmenu:minimize,maximize,close";
     };
 
+    "org/gnome/desktop/sound" = {
+      theme-name = theme.soundTheme;
+    };
+
     "org/gnome/shell" = {
       enabled-extensions = extensions.uuids;
     };

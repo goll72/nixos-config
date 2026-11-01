@@ -1,0 +1,6 @@
+[Sound Theme]
+Name=Neue
+Directories=stereo
+
+[stereo]
+OutputProfile=stereo

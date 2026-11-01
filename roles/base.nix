@@ -136,6 +136,8 @@ in
       REPORTTIME=10
 
       setopt HIST_IGNORE_SPACE
+
+      unsetopt BEEP
     '';
 
     promptInit = ''

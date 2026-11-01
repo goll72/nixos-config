@@ -1,6 +1,7 @@
 final: prev: {
   hylki = prev.callPackage ../packages/hylki { };
   ipup = prev.callPackage ../packages/ipup { };
+  neue-sound-theme = prev.callPackage ../packages/neue-sound-theme { };
   pawse = prev.callPackage ../packages/pawse { };
   seekey = prev.callPackage ../packages/seekey { };
   tab-reload-notify-native = prev.callPackage ../packages/tab-reload-notify-native { };

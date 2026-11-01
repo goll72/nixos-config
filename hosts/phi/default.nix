@@ -81,7 +81,7 @@
     hashedPasswordFile = config.sops.secrets."passwords/goll".path;
   };
 
-  users.avatars.goll = ../../assets/pfp/image.jpg;
+  users.avatars.goll = ../../assets/avatar/image.jpg;
 
   i18n.defaultLocale = "en_US.UTF-8";
   i18n.extraLocales = [

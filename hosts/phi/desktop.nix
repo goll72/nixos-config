@@ -34,13 +34,13 @@ in
 
   environment.systemPackages = extensions.items ++ [
     # Available system-wide so the GDM greeter can use it as well
-    # (the user session gets it through gtk.iconTheme in home/gnome.nix)
     pkgs.papirus-icon-theme
+    pkgs.neue-sound-theme
   ];
 
-  # The GDM greeter runs as its own user and does not read the goll dconf
-  # settings, so give it the same fonts and icon theme through its own
-  # dconf profile. Placed first in the profile so these keys win over
+  # The GDM greeter runs as its own user and does not read the main user's
+  # dconf settings, so give it the same fonts and icon theme through its
+  # own dconf profile. Placed first in the profile so these keys win over
   # GDM's greeter-dconf-defaults.
   programs.dconf.profiles.gdm.databases = lib.mkBefore [
     {

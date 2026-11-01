@@ -137,6 +137,17 @@ in
           allowedTCPPorts = [ 53 ];
         };
       };
+
+      # Add restart on failure to the Wireguard service unit
+      systemd.services = lib.mkIf (!isHub) {
+        "wireguard-${interface}-peer-${hub}".serviceConfig = {
+          Restart = "on-failure";
+          RestartSec = "5s";
+          RestartSteps = 5;
+          RestartMaxDelaySec = "60s";
+          RestartRandomizedDelaySec = "5s";
+        };
+      };
     }
   );
 }
