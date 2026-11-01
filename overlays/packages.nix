@@ -13,6 +13,6 @@ final: prev: {
     rounded-window-corners-reborn =
       prev.callPackage ../packages/gnome-extension-rounded-window-corners-reborn
         { };
-    wiggle = prev.callPackage ../packages/gnome-extension-wiggle { };
+    wiggly = prev.callPackage ../packages/gnome-extension-wiggly { };
   };
 }

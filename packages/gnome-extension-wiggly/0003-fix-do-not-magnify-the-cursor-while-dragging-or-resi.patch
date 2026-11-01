@@ -1,0 +1,67 @@
+From 1d2fbc0c36b651ee6764450d020728a6e5362366 Mon Sep 17 00:00:00 2001
+From: nixos-config <nixos-config@local>
+Date: Sun, 1 Nov 2026 18:30:26 -0300
+Subject: [PATCH 3/3] fix: do not magnify the cursor while dragging or resizing
+ a window
+
+Magnifying hides the hardware cursor and inhibits seat unfocus, which
+aborts an in-progress window move/resize grab. During a fast drag the
+wiggle detector would fire and stop the drag entirely.
+
+Track Meta.Display grab-op-begin/grab-op-end and suppress magnification
+while a window grab is active. If a grab starts while already magnified,
+unmagnify so the drag is not interrupted.
+---
+ extension.js | 25 ++++++++++++++++++++++++-
+ 1 file changed, 24 insertions(+), 1 deletion(-)
+
+diff --git a/extension.js b/extension.js
+index 0b430aa..19b8f53 100644
+--- a/extension.js
++++ b/extension.js
+@@ -36,7 +36,7 @@ export default class WigglyExtension extends Extension {
+                 return GLib.SOURCE_CONTINUE;
+             }
+             if (this._history.check()) {
+-                if (!this._effect.isWiggling) {
++                if (!this._effect.isWiggling && !this._isGrabbing) {
+                     this._effect.move(this._history.lastCoords.x, this._history.lastCoords.y);
+                     this._effect.magnify();
+                 }
+@@ -101,6 +101,20 @@ export default class WigglyExtension extends Extension {
+ 
+     enable() {
+         this._pointerWatcher = getPointerWatcher();
++
++        // Magnifying hides/inhibits the cursor, which aborts an in-progress
++        // window move/resize grab. Track window grabs so we never magnify
++        // while the user is dragging or resizing a window.
++        this._isGrabbing = false;
++        this._grabOpBeginId = global.display.connect('grab-op-begin', () => {
++            this._isGrabbing = true;
++            if (this._effect?.isWiggling) {
++                this._effect.unmagnify();
++            }
++        });
++        this._grabOpEndId = global.display.connect('grab-op-end', () => {
++            this._isGrabbing = false;
++        });
+         this._history = new History();
+         this._effect = new Effect();
+         this._settings = this.getSettings();
+@@ -121,6 +135,15 @@ export default class WigglyExtension extends Extension {
+     }
+ 
+     disable() {
++        if (this._grabOpBeginId) {
++            global.display.disconnect(this._grabOpBeginId);
++            this._grabOpBeginId = 0;
++        }
++        if (this._grabOpEndId) {
++            global.display.disconnect(this._grabOpEndId);
++            this._grabOpEndId = 0;
++        }
++        this._isGrabbing = false;
+         if (this._checkTimeoutId) {
+             GLib.Source.remove(this._checkTimeoutId);
+             this._checkTimeoutId = null;

@@ -1,0 +1,77 @@
+From 3192b564f6684acffa46a4aebf2de043485ad1b7 Mon Sep 17 00:00:00 2001
+From: nixos-config <nixos-config@local>
+Date: Sun, 1 Nov 2026 18:30:20 -0300
+Subject: [PATCH 2/3] fix: inhibit unredirect while magnified so the icon
+ paints over fullscreen windows
+
+Mutter direct-scanouts an unobscured fullscreen Wayland surface, bypassing
+stage rendering. The magnified cursor is a shell actor that does not count
+as obscuring the surface, so the icon never paints while hide() has already
+hidden the hardware cursor: over e.g. fullscreen Firefox the cursor just
+disappears instead of magnifying.
+
+Inhibit unredirect (global.compositor.disable_unredirect) while magnified,
+like gnome-shell's own magnifier, and re-enable it when the wiggle ends.
+Guarded with a flag so the pair stays balanced if the extension is disabled
+mid-wiggle.
+---
+ effect.js | 18 ++++++++++++++++++
+ 1 file changed, 18 insertions(+)
+
+diff --git a/effect.js b/effect.js
+index 8bf6cb4..6cd2f25 100644
+--- a/effect.js
++++ b/effect.js
+@@ -25,6 +25,7 @@ export default class Effect extends St.Icon {
+         this.unmagnifyDelay = 0;
+         this.isWiggling = false;
+         this._isInTransition = false;
++        this._unredirectDisabled = false;
+         this.cursor = new Cursor();
+         [this._hotX, this._hotY] = this.cursor.hot;
+         this._spriteSize = this.cursor.sprite ? this.cursor.sprite.get_width() : 24;
+@@ -53,6 +54,14 @@ export default class Effect extends St.Icon {
+ 
+     magnify() {
+         this.isWiggling = true;
++        // A fullscreen window can be scanned out directly, bypassing the
++        // stage, so our icon would never be painted over it (the real cursor
++        // disappears because hide() hides the hardware cursor). Inhibit
++        // unredirect while magnified, like the built-in magnifier does.
++        if (!this._unredirectDisabled && global.compositor?.disable_unredirect) {
++            global.compositor.disable_unredirect();
++            this._unredirectDisabled = true;
++        }
+         Main.uiGroup.add_child(this);
+         if (this.isHidden) {
+             this.cursor.hide();
+@@ -89,6 +98,7 @@ export default class Effect extends St.Icon {
+                 pivot_point: this._pivot,
+                 onComplete: () => {
+                     Main.uiGroup.remove_child(this);
++                    this._enableUnredirect();
+                     if (this.isHidden) this.cursor.show();
+ 
+                     this.isWiggling = false;
+@@ -102,6 +112,13 @@ export default class Effect extends St.Icon {
+         });
+     }
+ 
++    _enableUnredirect() {
++        if (this._unredirectDisabled) {
++            global.compositor.enable_unredirect();
++            this._unredirectDisabled = false;
++        }
++    }
++
+     destroy() {
+         if (this._unmagnifyDelayId) {
+             GLib.Source.remove(this._unmagnifyDelayId);
+@@ -114,6 +131,7 @@ export default class Effect extends St.Icon {
+             Main.uiGroup.remove_child(this);
+         }
+ 
++        this._enableUnredirect();
+         this.isWiggling = false;
+         this._isInTransition = false;
+         super.destroy();

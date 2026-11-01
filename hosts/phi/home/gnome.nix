@@ -183,7 +183,7 @@ in
         ];
       };
 
-    "org/gnome/shell/extensions/wiggle" = {
+    "org/gnome/shell/extensions/wiggly" = {
       magnify-duration = 200;
       unmagnify-duration = 150;
       unmagnify-delay = 200;

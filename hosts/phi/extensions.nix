@@ -15,7 +15,7 @@ let
     pkgs.gnomeExtensions.hibernate-power-menu
     pkgs.gnomeExtensions.just-perfection
     pkgs.gnomeExtensions.rounded-window-corners-reborn
-    pkgs.gnomeExtensions.wiggle
+    pkgs.gnomeExtensions.wiggly
   ];
 
   # Each extension package exposes the UUID of the directory it installs
