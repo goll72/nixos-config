@@ -13,6 +13,7 @@
     inputs.lanzaboote.nixosModules.lanzaboote
     inputs.sops-nix.nixosModules.sops
     inputs.home-manager.nixosModules.default
+    inputs.acer-charger-mute.nixosModules.default
 
     ./disko.nix
     ./hardware.nix

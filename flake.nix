@@ -11,6 +11,8 @@
     lanzaboote.inputs.nixpkgs.follows = "nixpkgs";
     nix-firefox-addons.url = "github:osipog/nix-firefox-addons";
     nix-firefox-addons.inputs.nixpkgs.follows = "nixpkgs";
+    acer-charger-mute.url = "github:goll72/acer-charger-mute";
+    acer-charger-mute.inputs.nixpkgs.follows = "nixpkgs";
 
     # Inspiration from https://simonshine.dk/articles/managing-secrets-privately-with-sops-nix
     nixos-secrets.url = "git+file:./secrets";

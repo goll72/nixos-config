@@ -1,5 +1,25 @@
 {
   "nodes": {
+    "acer-charger-mute": {
+      "inputs": {
+        "nixpkgs": [
+          "nixpkgs"
+        ]
+      },
+      "locked": {
+        "lastModified": 1793822897,
+        "narHash": "sha256-mCJUckzXTrj4COrZUDxTaELaTAzSbjujqJhUvN0gq+Y=",
+        "owner": "goll72",
+        "repo": "acer-charger-mute",
+        "rev": "267b185de653fcabca004d8208c217fced066e9d",
+        "type": "github"
+      },
+      "original": {
+        "owner": "goll72",
+        "repo": "acer-charger-mute",
+        "type": "github"
+      }
+    },
     "crane": {
       "locked": {
         "lastModified": 1781825982,
@@ -213,6 +233,7 @@
     },
     "root": {
       "inputs": {
+        "acer-charger-mute": "acer-charger-mute",
         "disko": "disko",
         "home-manager": "home-manager",
         "lanzaboote": "lanzaboote",
