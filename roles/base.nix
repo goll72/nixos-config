@@ -183,6 +183,10 @@ in
 
   users.users.root.shell = pkgs.zsh;
 
+  security.sudo.extraConfig = ''
+    Defaults runcwd=*
+  '';
+
   # NOTE: Both roots are still shipped by the pinned cacert trust store
   # (private keys compromised); remove once nss-cacert drops them upstream.
   security.pki.caCertificateBlacklist = [
