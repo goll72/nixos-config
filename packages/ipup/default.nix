@@ -14,13 +14,13 @@
 stdenv.mkDerivation {
   pname = "ipup";
   # No tags upstream; version is from meson.build, date is the pinned commit.
-  version = "0.1-unstable-2026-10-12";
+  version = "0.1-unstable-2026-11-05";
 
   src = fetchFromGitHub {
     owner = "goll72";
     repo = "ipup";
-    rev = "48930df21ed85cf72004f4d71f9d390034a3411a";
-    hash = "sha256-e/kAUk7xCHk++PE7HX6K1VMp5nW0jVCLfxRE9LlRUO0=";
+    rev = "d71f08ef94c784948537af171d8fadecef8fee4b";
+    hash = "sha256-A9QPfIf9GNkzOKm3EEOmU52DNgq9Vp+v9h8+9l7PCSA=";
   };
 
   nativeBuildInputs = [
