@@ -15,13 +15,13 @@
         "local-llm-api-key"
       ];
 
-      zerostack-with-api-keys = pkgs.writeShellApplication {
-        name = "zerostack";
+      maki-with-api-keys = pkgs.writeShellApplication {
+        name = "maki";
         text = ''
           ${lib.concatMapStringsSep "\n" (
             x: ''${var x}="$(< ${config.sops.secrets.${x}.path})"; export ${var x}''
           ) api-keys}
-          exec ${lib.getExe pkgs.zerostack} "$@"
+          exec ${lib.getExe pkgs.maki} "$@"
         '';
       };
     in
@@ -43,7 +43,7 @@
       pkgs.typst
       pkgs.wl-clipboard
 
-      zerostack-with-api-keys
+      maki-with-api-keys
 
       pkgs.dosbox-x
       pkgs.gimp3
@@ -64,6 +64,7 @@
 
       # Used as the default terminal application
       pkgs.xdg-terminal-exec
+
     ];
 
   fonts.packages = [

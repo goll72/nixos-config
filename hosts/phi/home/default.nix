@@ -11,14 +11,14 @@
     ./git.nix
     ./gnome.nix
     ./helix.nix
+    ./maki.nix
     ./obs-studio.nix
     ./seekey.nix
     ./ssh.nix
     ./zellij.nix
-    ./zerostack.nix
     ./zsh.nix
 
-    ../../../modules/home/zerostack.nix
+    ../../../modules/home/maki.nix
   ];
 
   home.username = "goll";
