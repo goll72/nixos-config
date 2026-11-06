@@ -38,6 +38,7 @@
       pkgs.qrtool
       pkgs.sbctl
       pkgs.scrcpy
+      pkgs.systemdUkify
       pkgs.timg
       pkgs.tinymist
       pkgs.typst
