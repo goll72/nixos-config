@@ -1,0 +1,212 @@
+diff --git a/helix-term/src/ui/editor.rs b/helix-term/src/ui/editor.rs
+index ffdd3b51..b31d4d5e 100644
+--- a/helix-term/src/ui/editor.rs
++++ b/helix-term/src/ui/editor.rs
+@@ -53,6 +53,7 @@ pub struct EditorView {
+     pub(crate) last_insert: (commands::MappableCommand, Vec<InsertEvent>),
+     pub(crate) completion: Option<Completion>,
+     spinners: ProgressSpinners,
++    bufferline_info: BufferLineInfo,
+     /// Tracks if the terminal window is focused by reaction to terminal focus events
+     terminal_focused: bool,
+     /// When the mouse wheel last turned a media document's page.
+@@ -143,6 +144,7 @@ pub fn new(keymaps: Keymaps) -> Self {
+             last_insert: (commands::MappableCommand::normal_mode, Vec::new()),
+             completion: None,
+             spinners: ProgressSpinners::default(),
++            bufferline_info: BufferLineInfo::default(),
+             terminal_focused: true,
+             last_media_page: None,
+             rendered_views: HashMap::new(),
+@@ -952,7 +954,7 @@ pub fn tabstop_highlights(doc: &Document, theme: &Theme) -> Option<OverlayHighli
+     }
+ 
+     /// Render bufferline at the top
+-    pub fn render_bufferline(editor: &Editor, viewport: Rect, surface: &mut Surface) {
++    pub fn render_bufferline(&mut self, editor: &Editor, viewport: Rect, surface: &mut Surface) {
+         surface.clear_with(
+             viewport,
+             editor
+@@ -972,31 +974,38 @@ pub fn render_bufferline(editor: &Editor, viewport: Rect, surface: &mut Surface)
+             .unwrap_or_else(|| editor.theme.get("ui.statusline.inactive"));
+         let current_doc = view!(editor).doc;
+ 
++        self.bufferline_info.clear();
++
+         // Build buffer entries: " name[+] " with an is_active flag.
+-        let entries: Vec<(String, bool)> = editor
++        let entries: Vec<(String, DocumentId, bool)> = editor
+             .documents()
+             .map(|doc| {
+                 let name = Self::make_document_name(doc, editor);
+                 let modified = if doc.is_modified() { "[+]" } else { "" };
+                 let label = format!(" {name}{modified} ");
+-                (label, doc.id() == current_doc)
++                (label, doc.id(), doc.id() == current_doc)
+             })
+             .collect();
+ 
+-        let total_width: u16 = entries.iter().map(|(label, _)| label.width() as u16).sum();
++        let total_width: u16 = entries.iter().map(|(label, _, _)| label.width() as u16).sum();
+ 
+         // No scrolling when all buffers fit.
+         if total_width <= viewport.width {
+-            let spans: Vec<Span> = entries
+-                .iter()
+-                .map(|(label, is_active)| {
+-                    if *is_active {
+-                        Span::styled(label.clone(), bufferline_active)
+-                    } else {
+-                        Span::styled(label.clone(), bufferline_inactive)
+-                    }
+-                })
+-                .collect();
++            let mut x = viewport.x;
++            let mut spans = Vec::with_capacity(entries.len());
++
++            for (label, doc_id, is_active) in &entries {
++                let style = if *is_active {
++                    bufferline_active
++                } else {
++                    bufferline_inactive
++                };
++                spans.push(Span::styled(label.clone(), style));
++
++                let end = x.saturating_add(label.width() as u16).min(viewport.right());
++                self.bufferline_info.add_buffer_info(*doc_id, x..end);
++                x = x.saturating_add(label.width() as u16);
++            }
+ 
+             surface.set_spans(viewport.x, viewport.y, &spans.into(), viewport.width);
+             return;
+@@ -1004,7 +1013,7 @@ pub fn render_bufferline(editor: &Editor, viewport: Rect, surface: &mut Surface)
+ 
+         // Find the active buffer's position for scrolling.
+         let mut offset_before_active = 0;
+-        for (label, is_active) in &entries {
++        for (label, _, is_active) in &entries {
+             let w = label.width() as u16;
+             if *is_active {
+                 break;
+@@ -1020,8 +1029,9 @@ pub fn render_bufferline(editor: &Editor, viewport: Rect, surface: &mut Surface)
+         // Render the visible part.
+         let mut spans = Vec::new();
+         let mut pos = 0;
++        let mut x = viewport.x;
+ 
+-        for (label, is_active) in entries {
++        for (label, doc_id, is_active) in entries {
+             let label_width = label.width() as u16;
+ 
+             // Skip entries completely left of the viewport.
+@@ -1038,11 +1048,18 @@ pub fn render_bufferline(editor: &Editor, viewport: Rect, surface: &mut Surface)
+             let skip_chars = scroll.saturating_sub(pos) as usize;
+             let visible_text = label.chars().skip(skip_chars).collect::<String>();
+ 
+-            if is_active {
+-                spans.push(Span::styled(visible_text, bufferline_active));
++            let style = if is_active {
++                bufferline_active
+             } else {
+-                spans.push(Span::styled(visible_text, bufferline_inactive));
+-            }
++                bufferline_inactive
++            };
++            spans.push(Span::styled(visible_text.clone(), style));
++
++            let end = x
++                .saturating_add(visible_text.width() as u16)
++                .min(viewport.right());
++            self.bufferline_info.add_buffer_info(doc_id, x..end);
++            x = end;
+ 
+             pos += label_width;
+         }
+@@ -1655,6 +1672,14 @@ fn handle_mouse_event(
+             MouseEventKind::Down(MouseButton::Left) => {
+                 let editor = &mut cxt.editor;
+ 
++                if is_bufferline_visible(editor) && row == 0 {
++                    if let Some(buffer_info) = self.bufferline_info.get_clicked_buffer(column) {
++                        editor.switch(buffer_info.document_id, helix_view::editor::Action::Replace);
++                    }
++
++                    return EventResult::Consumed(None);
++                }
++
+                 if let Some((pos, view_id)) = pos_and_view(editor, row, column, true) {
+                     editor.focus(view_id);
+ 
+@@ -2055,13 +2080,7 @@ fn render(&mut self, area: Rect, surface: &mut Surface, cx: &mut Context) {
+         surface.set_style(area, cx.editor.theme.get("ui.background"));
+         let config = cx.editor.config();
+ 
+-        // check if bufferline should be rendered
+-        use helix_view::editor::BufferLine;
+-        let use_bufferline = match config.bufferline {
+-            BufferLine::Always => true,
+-            BufferLine::Multiple if cx.editor.documents.len() > 1 => true,
+-            _ => false,
+-        };
++        let use_bufferline = is_bufferline_visible(cx.editor);
+ 
+         let mut area = area;
+ 
+@@ -2089,7 +2108,7 @@ fn render(&mut self, area: Rect, surface: &mut Surface, cx: &mut Context) {
+         cx.editor.resize(editor_area);
+ 
+         if use_bufferline {
+-            Self::render_bufferline(cx.editor, area.with_height(1), surface);
++            self.render_bufferline(cx.editor, area.with_height(1), surface);
+         }
+ 
+         let views: Vec<(ViewId, bool)> = {
+@@ -2240,6 +2259,48 @@ fn cursor(&self, _area: Rect, editor: &Editor) -> (Option<Position>, CursorKind)
+     }
+ }
+ 
++#[derive(Debug, Default)]
++struct BufferLineInfo {
++    visible_buffers: Vec<BufferInfo>,
++}
++
++impl BufferLineInfo {
++    fn clear(&mut self) {
++        self.visible_buffers.clear();
++    }
++
++    fn add_buffer_info(&mut self, document_id: DocumentId, columns: std::ops::Range<u16>) {
++        self.visible_buffers.push(BufferInfo {
++            document_id,
++            columns,
++        });
++    }
++
++    fn get_clicked_buffer(&self, column: u16) -> Option<&BufferInfo> {
++        self.visible_buffers
++            .iter()
++            .find(|cell| cell.columns.contains(&column))
++    }
++}
++
++#[derive(Debug)]
++struct BufferInfo {
++    document_id: DocumentId,
++    // The bufferline column span used to show the document name
++    columns: std::ops::Range<u16>,
++}
++
++fn is_bufferline_visible(editor: &Editor) -> bool {
++    use helix_view::editor::BufferLine;
++    let config = editor.config();
++
++    match config.bufferline {
++        BufferLine::Always => true,
++        BufferLine::Multiple => editor.documents.len() > 1,
++        BufferLine::Never => false,
++    }
++}
++
+ /// Drops the `Shift` modifier from a character key, so that a terminal which
+ /// reports `G` as `Shift-G` (as the Kitty keyboard protocol does) matches the
+ /// same binding as one which reports it as a bare `G`.

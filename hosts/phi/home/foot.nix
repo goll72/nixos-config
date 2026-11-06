@@ -39,6 +39,12 @@
         # Unbind foot's clipboard copy to free it up to be used by zellij
         clipboard-copy = "none";
       };
+
+      tweaks = {
+        # As much as I would like to keep this enabled, the resulting
+        # behavior from terminal programs is too inconsistent/fragile
+        grapheme-shaping = false;
+      };
     };
   };
 }

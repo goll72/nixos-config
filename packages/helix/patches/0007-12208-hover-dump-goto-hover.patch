@@ -1,0 +1,229 @@
+diff --git a/book/src/generated/static-cmd.md b/book/src/generated/static-cmd.md
+index 8142547f..ab655769 100644
+--- a/book/src/generated/static-cmd.md
++++ b/book/src/generated/static-cmd.md
+@@ -221,6 +221,7 @@
+ | `remove_primary_selection` | Remove primary selection | normal: `` <A-,> ``, select: `` <A-,> `` |
+ | `completion` | Invoke completion popup | insert: `` <C-x> `` |
+ | `hover` | Show docs for item under cursor | normal: `` <space>k ``, select: `` <space>k `` |
++| `goto_hover` | Show docs for item under cursor in a new buffer | normal: `` <space>K ``, select: `` <space>K `` |
+ | `toggle_comments` | Comment/uncomment selections | normal: `` <C-c> ``, `` <space>c ``, select: `` <C-c> ``, `` <space>c `` |
+ | `toggle_line_comments` | Line comment/uncomment selections | normal: `` <space><A-c> ``, select: `` <space><A-c> `` |
+ | `toggle_block_comments` | Block comment/uncomment selections | normal: `` <space>C ``, select: `` <space>C `` |
+diff --git a/book/src/keymap.md b/book/src/keymap.md
+index 8a57cef5..8ada02c1 100644
+--- a/book/src/keymap.md
++++ b/book/src/keymap.md
+@@ -340,6 +340,7 @@ #### Space mode
+ | `g`     | Open changed file picker                                                | `changed_file_picker`                      |
+ | `G`     | Debug (experimental)                                                    | N/A                                        |
+ | `k`     | Show documentation for item under cursor in a [popup](#popup) (**LSP**) | `hover`                                    |
++| `K`     | Go to documentation for item under cursor in a new buffer (**LSP**)     | `goto_hover`                               |
+ | `s`     | Open document symbol picker (**LSP** or **TS**)                         | `lsp_or_syntax_symbol_picker`              |
+ | `S`     | Open workspace symbol picker (**LSP** or **TS**)                        | `lsp_or_syntax_workspace_symbol_picker`    |
+ | `d`     | Open document diagnostics picker (**LSP**)                              | `diagnostics_picker`                       |
+diff --git a/helix-term/src/commands.rs b/helix-term/src/commands.rs
+index 768dfba4..1d1abbc5 100644
+--- a/helix-term/src/commands.rs
++++ b/helix-term/src/commands.rs
+@@ -551,6 +551,7 @@ pub(crate) fn doc_mut(&mut self) -> Option<&mut String> {
+         remove_primary_selection, "Remove primary selection",
+         completion, "Invoke completion popup",
+         hover, "Show docs for item under cursor",
++        goto_hover, "Show docs for item under cursor in a new buffer",
+         toggle_comments, "Comment/uncomment selections",
+         toggle_line_comments, "Line comment/uncomment selections",
+         toggle_block_comments, "Block comment/uncomment selections",
+diff --git a/helix-term/src/commands/lsp.rs b/helix-term/src/commands/lsp.rs
+index 93bf1e40..bb9e386d 100644
+--- a/helix-term/src/commands/lsp.rs
++++ b/helix-term/src/commands/lsp.rs
+@@ -15,7 +15,7 @@
+ 
+ use helix_core::{
+     diagnostic::DiagnosticProvider, syntax::config::LanguageServerFeature,
+-    text_annotations::InlineAnnotation, Selection, Uri,
++    text_annotations::InlineAnnotation, Rope, Selection, Uri,
+ };
+ use helix_stdx::path;
+ use helix_view::{
+@@ -38,6 +38,7 @@
+     fmt::Display,
+     future::Future,
+     path::Path,
++    sync::Arc,
+ };
+ 
+ /// Gets the first language server that is attached to a document which supports a specific feature.
+@@ -1064,7 +1065,12 @@ pub fn signature_help(cx: &mut Context) {
+         .trigger_signature_help(SignatureHelpInvoked::Manual, cx.editor)
+ }
+ 
+-pub fn hover(cx: &mut Context) {
++enum HoverDisplay {
++    Popup,
++    File,
++}
++
++fn hover_impl(cx: &mut Context, hover_action: HoverDisplay) {
+     use ui::lsp::hover::Hover;
+ 
+     let (view, doc) = current!(cx.editor);
+@@ -1111,15 +1117,42 @@ pub fn hover(cx: &mut Context) {
+                 return;
+             }
+ 
+-            // create new popup
+-            let contents = Hover::new(hovers, editor.syn_loader.clone());
+-            let popup = Popup::new(Hover::ID, contents).auto_close(true);
+-            compositor.replace_or_push(Hover::ID, popup);
++            let hover = Hover::new(hovers, editor.syn_loader.clone());
++
++            match hover_action {
++                HoverDisplay::Popup => {
++                    let popup = Popup::new(Hover::ID, hover).auto_close(true);
++                    compositor.replace_or_push(Hover::ID, popup);
++                }
++                HoverDisplay::File => {
++                    editor.new_file_from_document(
++                        Action::Replace,
++                        Document::from(
++                            Rope::from(hover.content_string()),
++                            None,
++                            Arc::clone(&editor.config),
++                            Arc::clone(&editor.syn_loader),
++                        ),
++                    );
++                    let hover_doc = doc_mut!(editor);
++
++                    let _ = hover_doc
++                        .set_language_by_language_id("markdown", &editor.syn_loader.load());
++                }
++            }
+         };
+         Ok(Callback::EditorCompositor(Box::new(call)))
+     });
+ }
+ 
++pub fn hover(cx: &mut Context) {
++    hover_impl(cx, HoverDisplay::Popup)
++}
++
++pub fn goto_hover(cx: &mut Context) {
++    hover_impl(cx, HoverDisplay::File)
++}
++
+ pub fn rename_symbol(cx: &mut Context) {
+     fn get_prefill_from_word_boundary(editor: &Editor) -> String {
+         let (view, doc) = current_ref!(editor);
+diff --git a/helix-term/src/keymap/default.rs b/helix-term/src/keymap/default.rs
+index e8f9ce69..eecd726f 100644
+--- a/helix-term/src/keymap/default.rs
++++ b/helix-term/src/keymap/default.rs
+@@ -336,6 +336,7 @@ pub fn default() -> HashMap<Mode, KeyTrie> {
+             "/" => global_search,
+             "l" => buffer_search,
+             "k" => hover,
++            "K" => goto_hover,
+             "r" => rename_symbol,
+             "h" => select_references_to_symbol_under_cursor,
+             "c" => toggle_comments,
+diff --git a/helix-term/src/ui/lsp/hover.rs b/helix-term/src/ui/lsp/hover.rs
+index 3617dbe6..1e027212 100644
+--- a/helix-term/src/ui/lsp/hover.rs
++++ b/helix-term/src/ui/lsp/hover.rs
+@@ -30,16 +30,15 @@ pub fn new(
+             .into_iter()
+             .enumerate()
+             .map(|(idx, (server_name, hover))| {
+-                let header = (n_hovers > 1).then(|| {
+-                    Markdown::new(
+-                        format!("**[{}/{}] {}**", idx + 1, n_hovers, server_name),
+-                        config_loader.clone(),
+-                    )
+-                });
++                let header = (n_hovers > 1)
++                    .then(|| format!("**[{}/{}] {}**\n", idx + 1, n_hovers, server_name))
++                    .map(|h| Markdown::new(h, Arc::clone(&config_loader)));
++
+                 let body = Markdown::new(
+                     hover_contents_to_string(hover.contents),
+-                    config_loader.clone(),
++                    Arc::clone(&config_loader),
+                 );
++
+                 (header, body)
+             })
+             .collect();
+@@ -54,10 +53,26 @@ fn has_header(&self) -> bool {
+         self.contents.len() > 1
+     }
+ 
+-    fn content(&self) -> &(Option<Markdown>, Markdown) {
++    fn content_markdown(&self) -> &(Option<Markdown>, Markdown) {
+         &self.contents[self.active_index]
+     }
+ 
++    pub fn content_string(&self) -> String {
++        self.contents
++            .iter()
++            .map(|(header, body)| {
++                let header: String = header
++                    .iter()
++                    .map(|header| header.contents.clone())
++                    .collect();
++
++                format!("{}{}", header, body.contents)
++            })
++            .collect::<Vec<String>>()
++            .join("\n\n---\n\n")
++            + "\n"
++    }
++
+     fn set_index(&mut self, index: usize) {
+         assert!((0..self.contents.len()).contains(&index));
+         self.active_index = index;
+@@ -75,7 +90,7 @@ fn render(&mut self, area: Rect, surface: &mut Buffer, cx: &mut Context) {
+         let margin = Margin::all(1);
+         let area = area.inner(margin);
+ 
+-        let (header, contents) = self.content();
++        let (header, contents) = self.content_markdown();
+ 
+         // show header and border only when more than one results
+         if let Some(header) = header {
+@@ -110,7 +125,7 @@ fn render(&mut self, area: Rect, surface: &mut Buffer, cx: &mut Context) {
+     fn required_size(&mut self, viewport: (u16, u16)) -> Option<(u16, u16)> {
+         let max_text_width = viewport.0.saturating_sub(PADDING_HORIZONTAL).clamp(10, 120);
+ 
+-        let (header, contents) = self.content();
++        let (header, contents) = self.content_markdown();
+ 
+         let header_width = header
+             .as_ref()
+diff --git a/helix-term/src/ui/markdown.rs b/helix-term/src/ui/markdown.rs
+index 323c9d40..8ec2108a 100644
+--- a/helix-term/src/ui/markdown.rs
++++ b/helix-term/src/ui/markdown.rs
+@@ -138,7 +138,7 @@ pub fn highlighted_code_block<'a>(
+ }
+ 
+ pub struct Markdown {
+-    contents: String,
++    pub contents: String,
+ 
+     config_loader: Arc<ArcSwap<syntax::Loader>>,
+ }
+diff --git a/helix-view/src/editor.rs b/helix-view/src/editor.rs
+index af77a9bf..078fe816 100644
+--- a/helix-view/src/editor.rs
++++ b/helix-view/src/editor.rs
+@@ -2339,7 +2339,7 @@ fn new_document(&mut self, mut doc: Document) -> DocumentId {
+         id
+     }
+ 
+-    fn new_file_from_document(&mut self, action: Action, doc: Document) -> DocumentId {
++    pub fn new_file_from_document(&mut self, action: Action, doc: Document) -> DocumentId {
+         let id = self.new_document(doc);
+         self.switch(id, action);
+         id

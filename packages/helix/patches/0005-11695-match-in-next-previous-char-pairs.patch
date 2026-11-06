@@ -1,0 +1,993 @@
+diff --git a/book/src/generated/static-cmd.md b/book/src/generated/static-cmd.md
+index 60e0a289..a1e38582 100644
+--- a/book/src/generated/static-cmd.md
++++ b/book/src/generated/static-cmd.md
+@@ -269,8 +269,28 @@
+ | `surround_add` | Surround add | normal: `` ms ``, select: `` ms `` |
+ | `surround_replace` | Surround replace | normal: `` mr ``, select: `` mr `` |
+ | `surround_delete` | Surround delete | normal: `` md ``, select: `` md `` |
+-| `select_textobject_around` | Select around object | normal: `` ma ``, select: `` ma `` |
+-| `select_textobject_inner` | Select inside object | normal: `` mi ``, select: `` mi `` |
++| `select_textobject_inside_type` | Select inside type definition (tree-sitter) | normal: `` mit ``, select: `` mit `` |
++| `select_textobject_around_type` | Select around type definition (tree-sitter) | normal: `` mat ``, select: `` mat `` |
++| `select_textobject_inside_function` | Select inside function (tree-sitter) | normal: `` mif ``, select: `` mif `` |
++| `select_textobject_around_function` | Select around function (tree-sitter) | normal: `` maf ``, select: `` maf `` |
++| `select_textobject_inside_parameter` | Select inside argument/parameter (tree-sitter) | normal: `` mia ``, select: `` mia `` |
++| `select_textobject_around_parameter` | Select around argument/parameter (tree-sitter) | normal: `` maa ``, select: `` maa `` |
++| `select_textobject_inside_comment` | Select inside comment (tree-sitter) | normal: `` mic ``, select: `` mic `` |
++| `select_textobject_around_comment` | Select around comment (tree-sitter) | normal: `` mac ``, select: `` mac `` |
++| `select_textobject_inside_test` | Select inside test (tree-sitter) | normal: `` miT ``, select: `` miT `` |
++| `select_textobject_around_test` | Select around test (tree-sitter) | normal: `` maT ``, select: `` maT `` |
++| `select_textobject_inside_entry` | Select inside data structure entry (tree-sitter) | normal: `` mie ``, select: `` mie `` |
++| `select_textobject_around_entry` | Select around data structure entry (tree-sitter) | normal: `` mae ``, select: `` mae `` |
++| `select_textobject_inside_paragraph` | Select inside paragraph | normal: `` mip ``, select: `` mip `` |
++| `select_textobject_around_paragraph` | Select around paragraph | normal: `` map ``, select: `` map `` |
++| `select_textobject_inside_closest_surrounding_pair` | Select inside closest surrounding pair (tree-sitter) | normal: `` mim ``, select: `` mim `` |
++| `select_textobject_around_closest_surrounding_pair` | Select around closest surrounding pair (tree-sitter) | normal: `` mam ``, select: `` mam `` |
++| `select_textobject_inside_word` | Select inside word | normal: `` miw ``, select: `` miw `` |
++| `select_textobject_around_word` | Select around word | normal: `` maw ``, select: `` maw `` |
++| `select_textobject_inside_WORD` | Select inside WORD | normal: `` miW ``, select: `` miW `` |
++| `select_textobject_around_WORD` | Select around WORD | normal: `` maW ``, select: `` maW `` |
++| `select_textobject_inside_change` | Select inside VCS change | normal: `` mig ``, select: `` mig `` |
++| `select_textobject_around_change` | Select around VCS change | normal: `` mag ``, select: `` mag `` |
+ | `goto_next_function` | Goto next function | normal: `` ]f ``, select: `` ]f `` |
+ | `goto_prev_function` | Goto previous function | normal: `` [f ``, select: `` [f `` |
+ | `goto_next_class` | Goto next type definition | normal: `` ]t ``, select: `` ]t `` |
+diff --git a/helix-core/src/search.rs b/helix-core/src/search.rs
+index 7cbc58d6..927a2e71 100644
+--- a/helix-core/src/search.rs
++++ b/helix-core/src/search.rs
+@@ -57,6 +57,55 @@ pub fn find_nth_char<M: CharMatcher>(
+     };
+ }
+ 
++pub fn find_nth_next<M: CharMatcher>(
++    text: RopeSlice,
++    char_matcher: M,
++    mut pos: usize,
++    n: usize,
++) -> Option<usize> {
++    if pos >= text.len_chars() || n == 0 {
++        return None;
++    }
++
++    let mut chars = text.chars_at(pos);
++
++    for _ in 0..n {
++        loop {
++            let c = chars.next()?;
++
++            pos += 1;
++
++            if char_matcher.char_match(c) {
++                break;
++            }
++        }
++    }
++
++    Some(pos - 1)
++}
++
++pub fn find_nth_prev(text: RopeSlice, ch: char, mut pos: usize, n: usize) -> Option<usize> {
++    if pos == 0 || n == 0 {
++        return None;
++    }
++
++    let mut chars = text.chars_at(pos);
++
++    for _ in 0..n {
++        loop {
++            let c = chars.prev()?;
++
++            pos -= 1;
++
++            if c == ch {
++                break;
++            }
++        }
++    }
++
++    Some(pos)
++}
++
+ #[cfg(test)]
+ mod test {
+     use super::*;
+diff --git a/helix-core/src/surround.rs b/helix-core/src/surround.rs
+index 4dec41f1..4427add3 100644
+--- a/helix-core/src/surround.rs
++++ b/helix-core/src/surround.rs
+@@ -154,6 +154,13 @@ fn find_nth_closest_pairs_plain(
+     Err(Error::PairNotFound)
+ }
+ 
++#[derive(Clone, Debug, Eq, PartialEq)]
++pub enum FindType {
++    Surround,
++    Next,
++    Prev,
++}
++
+ /// Find the position of surround pairs of `ch` which can be either a closing
+ /// or opening pair. `n` will skip n - 1 pairs (eg. n=2 will discard (only)
+ /// the first pair found and keep looking)
+@@ -162,17 +169,29 @@ pub fn find_nth_pairs_pos(
+     text: RopeSlice,
+     ch: char,
+     range: Range,
++    find_type: FindType,
+     n: usize,
+ ) -> Result<(usize, usize)> {
+     if text.len_chars() < 2 {
+         return Err(Error::PairNotFound);
+     }
+-    if range.to() >= text.len_chars() {
++    if range.to() > text.len_chars() {
+         return Err(Error::RangeExceedsText);
+     }
+ 
+     let (open, close) = get_pair(ch);
+     let pos = range.cursor(text);
++    let (pos, n) = match find_type {
++        FindType::Surround => (pos, n),
++        FindType::Next => match search::find_nth_next(text, open, pos, n) {
++            Some(next_pos) => (next_pos + 1, 1),
++            None => return Err(Error::PairNotFound),
++        },
++        FindType::Prev => match search::find_nth_prev(text, close, pos, n) {
++            Some(next_pos) => (next_pos - 1, 1),
++            None => return Err(Error::PairNotFound),
++        },
++    };
+ 
+     let (open, close) = if open == close {
+         if Some(open) == text.get_char(pos) {
+@@ -314,7 +333,7 @@ pub fn get_surround_pos(
+     for &range in selection {
+         let (open_pos, close_pos) = {
+             let range_raw = match ch {
+-                Some(ch) => find_nth_pairs_pos(syntax, text, ch, range, skip)?,
++                Some(ch) => find_nth_pairs_pos(syntax, text, ch, range, FindType::Surround, skip)?,
+                 None => find_nth_closest_pairs_pos(syntax, text, range, skip)?,
+             };
+             let range = Range::new(range_raw.0, range_raw.1);
+@@ -408,8 +427,15 @@ fn test_find_nth_pairs_pos_quote_success() {
+ 
+         assert_eq!(2, expectations.len());
+         assert_eq!(
+-            find_nth_pairs_pos(None, doc.slice(..), '\'', selection.primary(), 1)
+-                .expect("find should succeed"),
++            find_nth_pairs_pos(
++                None,
++                doc.slice(..),
++                '\'',
++                selection.primary(),
++                FindType::Surround,
++                1
++            )
++            .expect("find should succeed"),
+             (expectations[0], expectations[1])
+         )
+     }
+@@ -425,7 +451,62 @@ fn test_find_nth_pairs_pos_nested_quote_success() {
+ 
+         assert_eq!(2, expectations.len());
+         assert_eq!(
+-            find_nth_pairs_pos(None, doc.slice(..), '\'', selection.primary(), 2)
++            find_nth_pairs_pos(
++                None,
++                doc.slice(..),
++                '\'',
++                selection.primary(),
++                FindType::Surround,
++                2
++            )
++            .expect("find should succeed"),
++            (expectations[0], expectations[1])
++        )
++    }
++
++    #[test]
++    fn test_find_inside_third_next_quote() {
++        #[rustfmt::skip]
++        let (doc, selection, expectations) =
++            rope_with_selections_and_expectations(
++                "some 'nested 'quoted' text' on this 'line'\n'and this one'",
++                " ^                  _     _               \n              "
++            );
++
++        assert_eq!(2, expectations.len());
++        assert_eq!(
++            find_nth_pairs_pos(
++                None,
++                doc.slice(..),
++                '\'',
++                selection.primary(),
++                FindType::Next,
++                3
++            )
++            .expect("find should succeed"),
++            (expectations[0], expectations[1])
++        )
++    }
++
++    #[test]
++    fn test_find_inside_prev_quote() {
++        #[rustfmt::skip]
++        let (doc, selection, expectations) =
++            rope_with_selections_and_expectations(
++                "some 'nested 'quoted' text' on this 'line'\n'and this one'",
++                "                          _         _  ^  \n              "
++            );
++
++        assert_eq!(2, expectations.len());
++        assert_eq!(
++            find_nth_pairs_pos(
++                None,
++                doc.slice(..),
++                '\'',
++                selection.primary(),
++                FindType::Prev,
++                1
++            )
+                 .expect("find should succeed"),
+             (expectations[0], expectations[1])
+         )
+@@ -441,7 +522,14 @@ fn test_find_nth_pairs_pos_inside_quote_ambiguous() {
+             );
+ 
+         assert_eq!(
+-            find_nth_pairs_pos(None, doc.slice(..), '\'', selection.primary(), 1),
++            find_nth_pairs_pos(
++                None,
++                doc.slice(..),
++                '\'',
++                selection.primary(),
++                FindType::Surround,
++                1
++            ),
+             Err(Error::CursorOnAmbiguousPair)
+         )
+     }
+diff --git a/helix-core/src/textobject.rs b/helix-core/src/textobject.rs
+index 6cc7011e..487b8ae1 100644
+--- a/helix-core/src/textobject.rs
++++ b/helix-core/src/textobject.rs
+@@ -6,6 +6,7 @@
+ use crate::graphemes::{next_grapheme_boundary, prev_grapheme_boundary};
+ use crate::line_ending::rope_is_line_ending;
+ use crate::movement::Direction;
++use crate::surround::FindType;
+ use crate::syntax;
+ use crate::Range;
+ use crate::{surround, Syntax};
+@@ -204,9 +205,16 @@ pub fn textobject_pair_surround(
+     range: Range,
+     textobject: TextObject,
+     ch: char,
++    find_type: FindType,
+     count: usize,
+ ) -> Range {
+-    textobject_pair_surround_impl(syntax, slice, range, textobject, Some(ch), count)
++    textobject_pair_surround_impl(
++        syntax,
++        slice,
++        range,
++        textobject,
++        FindVariant::Char((ch, find_type, count)),
++    )
+ }
+ 
+ pub fn textobject_pair_surround_closest(
+@@ -216,7 +224,18 @@ pub fn textobject_pair_surround_closest(
+     textobject: TextObject,
+     count: usize,
+ ) -> Range {
+-    textobject_pair_surround_impl(syntax, slice, range, textobject, None, count)
++    textobject_pair_surround_impl(
++        syntax,
++        slice,
++        range,
++        textobject,
++        FindVariant::Closest(count),
++    )
++}
++
++enum FindVariant {
++    Char((char, FindType, usize)),
++    Closest(usize),
+ }
+ 
+ fn textobject_pair_surround_impl(
+@@ -224,12 +243,15 @@ fn textobject_pair_surround_impl(
+     slice: RopeSlice,
+     range: Range,
+     textobject: TextObject,
+-    ch: Option<char>,
+-    count: usize,
++    find_variant: FindVariant,
+ ) -> Range {
+-    let pair_pos = match ch {
+-        Some(ch) => surround::find_nth_pairs_pos(syntax, slice, ch, range, count),
+-        None => surround::find_nth_closest_pairs_pos(syntax, slice, range, count),
++    let pair_pos = match find_variant {
++        FindVariant::Char((ch, find_type, count)) => {
++            surround::find_nth_pairs_pos(syntax, slice, ch, range, find_type, count)
++        }
++        FindVariant::Closest(count) => {
++            surround::find_nth_closest_pairs_pos(syntax, slice, range, count)
++        }
+     };
+     pair_pos
+         .map(|(anchor, head)| match textobject {
+@@ -578,8 +600,15 @@ fn test_textobject_surround() {
+             let slice = doc.slice(..);
+             for &case in scenario {
+                 let (pos, objtype, expected_range, ch, count) = case;
+-                let result =
+-                    textobject_pair_surround(None, slice, Range::point(pos), objtype, ch, count);
++                let result = textobject_pair_surround(
++                    None,
++                    slice,
++                    Range::point(pos),
++                    objtype,
++                    ch,
++                    FindType::Surround,
++                    count,
++                );
+                 assert_eq!(
+                     result,
+                     expected_range.into(),
+diff --git a/helix-term/src/commands.rs b/helix-term/src/commands.rs
+index f3149058..59403ad3 100644
+--- a/helix-term/src/commands.rs
++++ b/helix-term/src/commands.rs
+@@ -41,7 +41,8 @@
+     object, pos_at_coords,
+     regex::{self, Regex},
+     search::{self},
+-    selection, surround,
++    selection,
++    surround::{self, FindType},
+     syntax::config::{BlockCommentToken, LanguageServerFeature},
+     text_annotations::{Overlay, TextAnnotations},
+     textobject,
+@@ -599,8 +600,28 @@ pub(crate) fn doc_mut(&mut self) -> Option<&mut String> {
+         surround_add, "Surround add",
+         surround_replace, "Surround replace",
+         surround_delete, "Surround delete",
+-        select_textobject_around, "Select around object",
+-        select_textobject_inner, "Select inside object",
++        select_textobject_inside_type, "Select inside type definition (tree-sitter)",
++        select_textobject_around_type, "Select around type definition (tree-sitter)",
++        select_textobject_inside_function, "Select inside function (tree-sitter)",
++        select_textobject_around_function, "Select around function (tree-sitter)",
++        select_textobject_inside_parameter, "Select inside argument/parameter (tree-sitter)",
++        select_textobject_around_parameter, "Select around argument/parameter (tree-sitter)",
++        select_textobject_inside_comment, "Select inside comment (tree-sitter)",
++        select_textobject_around_comment, "Select around comment (tree-sitter)",
++        select_textobject_inside_test, "Select inside test (tree-sitter)",
++        select_textobject_around_test, "Select around test (tree-sitter)",
++        select_textobject_inside_entry, "Select inside data structure entry (tree-sitter)",
++        select_textobject_around_entry, "Select around data structure entry (tree-sitter)",
++        select_textobject_inside_paragraph, "Select inside paragraph",
++        select_textobject_around_paragraph, "Select around paragraph",
++        select_textobject_inside_closest_surrounding_pair, "Select inside closest surrounding pair (tree-sitter)",
++        select_textobject_around_closest_surrounding_pair, "Select around closest surrounding pair (tree-sitter)",
++        select_textobject_inside_word, "Select inside word",
++        select_textobject_around_word, "Select around word",
++        select_textobject_inside_WORD, "Select inside WORD",
++        select_textobject_around_WORD, "Select around WORD",
++        select_textobject_inside_change, "Select inside VCS change",
++        select_textobject_around_change, "Select around VCS change",
+         goto_next_function, "Goto next function",
+         goto_prev_function, "Goto previous function",
+         goto_next_class, "Goto next type definition",
+@@ -753,6 +774,59 @@ fn eq(&self, other: &Self) -> bool {
+     }
+ }
+ 
++// TODO: this is mostly a copy of MappableCommand. Fold this into MappableCommand?
++#[derive(Debug, Clone)]
++pub struct FallbackCommand {
++    name: &'static str,
++    fun: fn(cx: &mut Context, ch: char),
++    doc: &'static str,
++}
++
++impl PartialEq for FallbackCommand {
++    fn eq(&self, other: &Self) -> bool {
++        // Ignore `fun` as function pointer comparisons do not produce meaningful results.
++        // See <https://doc.rust-lang.org/nightly/core/ptr/fn.fn_addr_eq.html>
++        self.name == other.name && self.doc == other.doc
++    }
++}
++
++impl Eq for FallbackCommand {}
++
++macro_rules! static_fallback_commands {
++    ( $($name:ident, $doc:literal,)* ) => {
++        $(
++            #[allow(non_upper_case_globals)]
++            pub const $name: Self = Self {
++                name: stringify!($name),
++                fun: $name,
++                doc: $doc
++            };
++        )*
++
++        pub const FALLBACK_COMMAND_LIST: &'static [Self] = &[
++            $( Self::$name, )*
++        ];
++    }
++}
++
++impl FallbackCommand {
++    pub fn execute(&self, cx: &mut Context, ch: char) {
++        (self.fun)(cx, ch)
++    }
++
++    pub fn doc(&self) -> &str {
++        self.doc
++    }
++
++    #[rustfmt::skip]
++    static_fallback_commands!(
++        select_textobject_inside_surrounding_pair, "Select inside any character pair",
++        select_textobject_around_surrounding_pair, "Select around any character pair",
++        select_textobject_inside_prev_pair, "Select inside previous character pair",
++        select_textobject_inside_next_pair, "Select inside next character pair",
++    );
++}
++
+ fn no_op(_cx: &mut Context) {}
+ 
+ type MoveFn =
+@@ -6658,115 +6732,253 @@ fn goto_prev_entry(cx: &mut Context) {
+     goto_ts_object_impl(cx, "entry", Direction::Backward)
+ }
+ 
+-fn select_textobject_around(cx: &mut Context) {
+-    select_textobject(cx, textobject::TextObject::Around);
++fn select_textobject_inside_type(cx: &mut Context) {
++    textobject_treesitter(cx, textobject::TextObject::Inside, "class");
++}
++
++fn select_textobject_around_type(cx: &mut Context) {
++    textobject_treesitter(cx, textobject::TextObject::Around, "class");
++}
++
++fn select_textobject_inside_function(cx: &mut Context) {
++    textobject_treesitter(cx, textobject::TextObject::Inside, "function");
++}
++
++fn select_textobject_around_function(cx: &mut Context) {
++    textobject_treesitter(cx, textobject::TextObject::Around, "function");
+ }
+ 
+-fn select_textobject_inner(cx: &mut Context) {
+-    select_textobject(cx, textobject::TextObject::Inside);
++fn select_textobject_inside_parameter(cx: &mut Context) {
++    textobject_treesitter(cx, textobject::TextObject::Inside, "parameter");
+ }
+ 
+-fn select_textobject(cx: &mut Context, objtype: textobject::TextObject) {
++fn select_textobject_around_parameter(cx: &mut Context) {
++    textobject_treesitter(cx, textobject::TextObject::Around, "parameter");
++}
++
++fn select_textobject_inside_comment(cx: &mut Context) {
++    textobject_treesitter(cx, textobject::TextObject::Inside, "comment");
++}
++
++fn select_textobject_around_comment(cx: &mut Context) {
++    textobject_treesitter(cx, textobject::TextObject::Around, "comment");
++}
++
++fn select_textobject_inside_test(cx: &mut Context) {
++    textobject_treesitter(cx, textobject::TextObject::Inside, "test");
++}
++
++fn select_textobject_around_test(cx: &mut Context) {
++    textobject_treesitter(cx, textobject::TextObject::Around, "test");
++}
++
++fn select_textobject_inside_entry(cx: &mut Context) {
++    textobject_treesitter(cx, textobject::TextObject::Inside, "entry");
++}
++
++fn select_textobject_around_entry(cx: &mut Context) {
++    textobject_treesitter(cx, textobject::TextObject::Around, "entry");
++}
++
++fn textobject_treesitter(
++    cx: &mut Context,
++    obj_type: textobject::TextObject,
++    object_name: &'static str,
++) {
+     let count = cx.count();
++    let motion = move |editor: &mut Editor| {
++        let (view, doc) = current!(editor);
++        let Some(syntax) = doc.syntax() else {
++            editor.set_status("Syntax information is not available in current buffer");
++            return;
++        };
++        let loader = editor.syn_loader.load();
++        let text = doc.text().slice(..);
++        let selection = doc.selection(view.id).clone().transform(|range| {
++            textobject::textobject_treesitter(
++                text,
++                range,
++                obj_type,
++                object_name,
++                syntax,
++                &loader,
++                count,
++            )
++        });
++        doc.set_selection(view.id, selection);
++    };
++    cx.editor.apply_motion(motion);
++}
+ 
+-    cx.on_next_key(move |cx, event| {
+-        cx.editor.autoinfo = None;
+-        if let Some(ch) = event.char() {
+-            let textobject = move |editor: &mut Editor| {
+-                let (view, doc) = current!(editor);
+-                let loader = editor.syn_loader.load();
+-                let text = doc.text().slice(..);
++fn select_textobject_inside_paragraph(cx: &mut Context) {
++    textobject_paragraph(cx, textobject::TextObject::Inside);
++}
+ 
+-                let textobject_treesitter = |obj_name: &str, range: Range| -> Range {
+-                    let Some(syntax) = doc.syntax() else {
+-                        return range;
+-                    };
+-                    textobject::textobject_treesitter(
+-                        text, range, objtype, obj_name, syntax, &loader, count,
+-                    )
+-                };
++fn select_textobject_around_paragraph(cx: &mut Context) {
++    textobject_paragraph(cx, textobject::TextObject::Around);
++}
+ 
+-                if ch == 'g' && doc.diff_handle().is_none() {
+-                    editor.set_status("Diff is not available in current buffer");
+-                    return;
+-                }
++fn textobject_paragraph(cx: &mut Context, textobject: textobject::TextObject) {
++    let count = cx.count();
++    let motion = move |editor: &mut Editor| {
++        let (view, doc) = current!(editor);
++        let text = doc.text().slice(..);
++        let selection = doc
++            .selection(view.id)
++            .clone()
++            .transform(|range| textobject::textobject_paragraph(text, range, textobject, count));
++        doc.set_selection(view.id, selection);
++    };
++    cx.editor.apply_motion(motion);
++}
+ 
+-                let textobject_change = |range: Range| -> Range {
+-                    let diff_handle = doc.diff_handle().unwrap();
+-                    let diff = diff_handle.load();
+-                    let line = range.cursor_line(text);
+-                    let hunk_idx = if let Some(hunk_idx) = diff.hunk_at(line as u32, false) {
+-                        hunk_idx
+-                    } else {
+-                        return range;
+-                    };
+-                    let hunk = diff.nth_hunk(hunk_idx).after;
++fn select_textobject_inside_closest_surrounding_pair(cx: &mut Context) {
++    textobject_closest_surrounding_pair(cx, textobject::TextObject::Inside);
++}
+ 
+-                    let start = text.line_to_char(hunk.start as usize);
+-                    let end = text.line_to_char(hunk.end as usize);
+-                    Range::new(start, end).with_direction(range.direction())
+-                };
++fn select_textobject_around_closest_surrounding_pair(cx: &mut Context) {
++    textobject_closest_surrounding_pair(cx, textobject::TextObject::Around);
++}
+ 
+-                let selection = doc.selection(view.id).clone().transform(|range| {
+-                    match ch {
+-                        'w' => textobject::textobject_word(text, range, objtype, count, false),
+-                        'W' => textobject::textobject_word(text, range, objtype, count, true),
+-                        't' => textobject_treesitter("class", range),
+-                        'f' => textobject_treesitter("function", range),
+-                        'a' => textobject_treesitter("parameter", range),
+-                        'c' => textobject_treesitter("comment", range),
+-                        'T' => textobject_treesitter("test", range),
+-                        'e' => textobject_treesitter("entry", range),
+-                        'x' => textobject_treesitter("xml-element", range),
+-                        'p' => textobject::textobject_paragraph(text, range, objtype, count),
+-                        'm' => textobject::textobject_pair_surround_closest(
+-                            doc.syntax(),
+-                            text,
+-                            range,
+-                            objtype,
+-                            count,
+-                        ),
+-                        'g' => textobject_change(range),
+-                        // TODO: cancel new ranges if inconsistent surround matches across lines
+-                        ch if !ch.is_ascii_alphanumeric() => textobject::textobject_pair_surround(
+-                            doc.syntax(),
+-                            text,
+-                            range,
+-                            objtype,
+-                            ch,
+-                            count,
+-                        ),
+-                        _ => range,
+-                    }
+-                });
+-                doc.set_selection(view.id, selection);
++fn textobject_closest_surrounding_pair(cx: &mut Context, textobject: textobject::TextObject) {
++    let count = cx.count();
++    let motion = move |editor: &mut Editor| {
++        let (view, doc) = current!(editor);
++        let text = doc.text().slice(..);
++        let syntax = doc.syntax();
++        let selection = doc.selection(view.id).clone().transform(|range| {
++            textobject::textobject_pair_surround_closest(syntax, text, range, textobject, count)
++        });
++        doc.set_selection(view.id, selection);
++    };
++    cx.editor.apply_motion(motion);
++}
++
++fn select_textobject_inside_word(cx: &mut Context) {
++    textobject_word(cx, textobject::TextObject::Inside, false);
++}
++
++fn select_textobject_around_word(cx: &mut Context) {
++    textobject_word(cx, textobject::TextObject::Around, false);
++}
++
++#[allow(non_snake_case)]
++fn select_textobject_inside_WORD(cx: &mut Context) {
++    textobject_word(cx, textobject::TextObject::Inside, true);
++}
++
++#[allow(non_snake_case)]
++fn select_textobject_around_WORD(cx: &mut Context) {
++    textobject_word(cx, textobject::TextObject::Around, true);
++}
++
++fn textobject_word(cx: &mut Context, textobject: textobject::TextObject, longword: bool) {
++    let count = cx.count();
++    let motion = move |editor: &mut Editor| {
++        let (view, doc) = current!(editor);
++        let text = doc.text().slice(..);
++        let selection = doc.selection(view.id).clone().transform(|range| {
++            textobject::textobject_word(text, range, textobject, count, longword)
++        });
++        doc.set_selection(view.id, selection);
++    };
++    cx.editor.apply_motion(motion);
++}
++
++fn select_textobject_inside_change(cx: &mut Context) {
++    textobject_change(cx);
++}
++
++fn select_textobject_around_change(cx: &mut Context) {
++    textobject_change(cx);
++}
++
++fn textobject_change(cx: &mut Context) {
++    let motion = move |editor: &mut Editor| {
++        let (view, doc) = current!(editor);
++        let Some(diff_handle) = doc.diff_handle() else {
++            editor.set_status("Diff is not available in current buffer");
++            return;
++        };
++        let diff = diff_handle.load();
++        let text = doc.text().slice(..);
++        let selection = doc.selection(view.id).clone().transform(|range| {
++            let line = range.cursor_line(text);
++            let hunk_idx = if let Some(hunk_idx) = diff.hunk_at(line as u32, false) {
++                hunk_idx
++            } else {
++                return range;
+             };
+-            cx.editor.apply_motion(textobject);
+-        }
+-    });
++            let hunk = diff.nth_hunk(hunk_idx).after;
+ 
+-    let title = match objtype {
+-        textobject::TextObject::Inside => "Match inside",
+-        textobject::TextObject::Around => "Match around",
+-        _ => return,
++            let start = text.line_to_char(hunk.start as usize);
++            let end = text.line_to_char(hunk.end as usize);
++            Range::new(start, end).with_direction(range.direction())
++        });
++        drop(diff);
++        doc.set_selection(view.id, selection);
+     };
+-    let help_text = [
+-        ("w", "Word"),
+-        ("W", "WORD"),
+-        ("p", "Paragraph"),
+-        ("t", "Type definition (tree-sitter)"),
+-        ("f", "Function (tree-sitter)"),
+-        ("a", "Argument/parameter (tree-sitter)"),
+-        ("c", "Comment (tree-sitter)"),
+-        ("T", "Test (tree-sitter)"),
+-        ("e", "Data structure entry (tree-sitter)"),
+-        ("m", "Closest surrounding pair (tree-sitter)"),
+-        ("g", "Change"),
+-        ("x", "(X)HTML element (tree-sitter)"),
+-        (" ", "... or any character acting as a pair"),
+-    ];
++    cx.editor.apply_motion(motion);
++}
++
++fn select_textobject_inside_surrounding_pair(cx: &mut Context, ch: char) {
++    textobject_surrounding_pair(cx, textobject::TextObject::Inside, ch, None);
++}
++
++fn select_textobject_around_surrounding_pair(cx: &mut Context, ch: char) {
++    textobject_surrounding_pair(cx, textobject::TextObject::Around, ch, None);
++}
++
++fn select_textobject_inside_prev_pair(cx: &mut Context, ch: char) {
++    textobject_surrounding_pair(
++        cx,
++        textobject::TextObject::Inside,
++        ch,
++        Some(Direction::Backward),
++    );
++}
++
++fn select_textobject_inside_next_pair(cx: &mut Context, ch: char) {
++    textobject_surrounding_pair(
++        cx,
++        textobject::TextObject::Inside,
++        ch,
++        Some(Direction::Forward),
++    );
++}
++
++fn textobject_surrounding_pair(
++    cx: &mut Context,
++    textobject: textobject::TextObject,
++    pair_char: char,
++    direction: Option<Direction>,
++) {
++    if pair_char.is_ascii_alphanumeric() {
++        return;
++    }
+ 
+-    cx.editor.autoinfo = Some(Info::new(title, &help_text));
++    let count = cx.count();
++    let motion = move |editor: &mut Editor| {
++        let (view, doc) = current!(editor);
++        let text = doc.text().slice(..);
++        let syntax = doc.syntax();
++        let selection = doc.selection(view.id).clone().transform(|range| {
++            let find_type = match direction {
++                None => FindType::Surround,
++                Some(Direction::Forward) => FindType::Next,
++                Some(Direction::Backward) => FindType::Prev,
++            };
++            let mut range = textobject::textobject_pair_surround(
++                syntax, text, range, textobject, pair_char, find_type, count,
++            );
++            if let Some(direction) = direction {
++                range = range.with_direction(direction);
++            }
++            range
++        });
++        doc.set_selection(view.id, selection);
++    };
++    cx.editor.apply_motion(motion);
+ }
+ 
+ static SURROUND_HELP_TEXT: [(&str, &str); 6] = [
+diff --git a/helix-term/src/keymap.rs b/helix-term/src/keymap.rs
+index 568d6752..21481764 100644
+--- a/helix-term/src/keymap.rs
++++ b/helix-term/src/keymap.rs
+@@ -1,6 +1,7 @@
+ pub mod default;
+ pub mod macros;
+ 
++use crate::commands::FallbackCommand;
+ pub use crate::commands::MappableCommand;
+ pub use default::default;
+ 
+@@ -28,6 +29,8 @@ pub struct KeyTrieNode {
+     map: IndexMap<KeyEvent, KeyTrie>,
+     #[serde(skip)]
+     pub is_sticky: bool,
++    #[serde(skip)]
++    fallback: Option<FallbackCommand>,
+ }
+ 
+ impl KeyTrieNode {
+@@ -36,6 +39,7 @@ pub fn new(name: &str, map: IndexMap<KeyEvent, KeyTrie>) -> Self {
+             name: name.to_string(),
+             map,
+             is_sticky: false,
++            fallback: None,
+         }
+     }
+ 
+@@ -75,13 +79,16 @@ pub fn infobox(&self) -> Info {
+             }
+         }
+ 
+-        let body: Vec<_> = body
++        let mut body: Vec<_> = body
+             .into_iter()
+             .map(|(events, desc)| {
+                 let events = events.iter().map(ToString::to_string).collect::<Vec<_>>();
+                 (events.join(", "), desc)
+             })
+             .collect();
++        if let Some(fallback) = self.fallback.as_ref() {
++            body.push(("...".to_string(), fallback.doc()));
++        }
+         Info::new(self.name.clone(), &body)
+     }
+ }
+@@ -259,6 +266,28 @@ pub fn search(&self, keys: &[KeyEvent]) -> Option<&KeyTrie> {
+         }
+         Some(trie)
+     }
++
++    pub fn search_fallback(&self, keys: &[KeyEvent]) -> Option<&FallbackCommand> {
++        // TODO: this is copied from above, hacky
++        let mut trie = self;
++        let mut keys = keys.iter().peekable();
++        while let Some(key) = keys.next() {
++            trie = match trie {
++                KeyTrie::Node(map) => match map.get(key) {
++                    Some(i) => Some(i),
++                    None => {
++                        if keys.peek().is_none() {
++                            return map.fallback.as_ref();
++                        }
++                        None
++                    }
++                },
++                // leaf encountered while keys left to process
++                KeyTrie::MappableCommand(_) | KeyTrie::Sequence(_) => None,
++            }?
++        }
++        None
++    }
+ }
+ 
+ #[derive(Debug, Clone, PartialEq)]
+@@ -273,6 +302,7 @@ pub enum KeymapResult {
+     /// Key is invalid in combination with previous keys. Contains keys leading upto
+     /// and including current (invalid) key.
+     Cancelled(Vec<KeyEvent>),
++    Fallback(FallbackCommand, char),
+ }
+ 
+ /// A map of command names to keybinds that will execute the command.
+@@ -370,7 +400,16 @@ pub(crate) fn get_with_map(
+                 self.state.clear();
+                 KeymapResult::MatchedSequence(cmds.clone())
+             }
+-            None => KeymapResult::Cancelled(self.state.drain(..).collect()),
++            None => {
++                if let Some(ch) = key.char() {
++                    if let Some(fallback) = trie.search_fallback(&self.state[1..]) {
++                        self.state.clear();
++                        return KeymapResult::Fallback(fallback.clone(), ch);
++                    }
++                }
++
++                KeymapResult::Cancelled(self.state.drain(..).collect())
++            }
+         }
+     }
+ 
+diff --git a/helix-term/src/keymap/default.rs b/helix-term/src/keymap/default.rs
+index 989024a0..1882e6f9 100644
+--- a/helix-term/src/keymap/default.rs
++++ b/helix-term/src/keymap/default.rs
+@@ -121,10 +121,34 @@ pub fn default() -> HashMap<Mode, KeyTrie> {
+             "s" => surround_add,
+             "r" => surround_replace,
+             "d" => surround_delete,
+-            "a" => select_textobject_around,
+-            "i" => select_textobject_inner,
++            "i" => { "Match inside" fallback=select_textobject_inside_surrounding_pair
++                "w" => select_textobject_inside_word,
++                "W" => select_textobject_inside_WORD,
++                "p" => select_textobject_inside_paragraph,
++                "t" => select_textobject_inside_type,
++                "f" => select_textobject_inside_function,
++                "a" => select_textobject_inside_parameter,
++                "c" => select_textobject_inside_comment,
++                "T" => select_textobject_inside_test,
++                "e" => select_textobject_inside_entry,
++                "m" => select_textobject_inside_closest_surrounding_pair,
++                "g" => select_textobject_inside_change,
++            },
++            "a" => { "Match around" fallback=select_textobject_around_surrounding_pair
++                "w" => select_textobject_around_word,
++                "W" => select_textobject_around_WORD,
++                "p" => select_textobject_around_paragraph,
++                "t" => select_textobject_around_type,
++                "f" => select_textobject_around_function,
++                "a" => select_textobject_around_parameter,
++                "c" => select_textobject_around_comment,
++                "T" => select_textobject_around_test,
++                "e" => select_textobject_around_entry,
++                "m" => select_textobject_around_closest_surrounding_pair,
++                "g" => select_textobject_around_change,
++            },
+         },
+-        "[" => { "Left bracket"
++        "[" => { "Left bracket" fallback=select_textobject_inside_prev_pair
+             "d" => goto_prev_diag,
+             "D" => goto_first_diag,
+             "g" => goto_prev_change,
+@@ -139,7 +163,7 @@ pub fn default() -> HashMap<Mode, KeyTrie> {
+             "x" => goto_prev_xml_element,
+             "space" => add_newline_above,
+         },
+-        "]" => { "Right bracket"
++        "]" => { "Right bracket" fallback=select_textobject_inside_next_pair
+             "d" => goto_next_diag,
+             "D" => goto_last_diag,
+             "g" => goto_next_change,
+diff --git a/helix-term/src/keymap/macros.rs b/helix-term/src/keymap/macros.rs
+index 9a69f4e9..bd6e7252 100644
+--- a/helix-term/src/keymap/macros.rs
++++ b/helix-term/src/keymap/macros.rs
+@@ -84,9 +84,9 @@ macro_rules! keymap {
+     };
+ 
+     (@trie
+-        { $label:literal $(sticky=$sticky:literal)? $($($key:literal)|+ => $value:tt,)+ }
++        { $label:literal $(sticky=$sticky:literal)? $(fallback=$fallback:ident)? $($($key:literal)|+ => $value:tt,)+ }
+     ) => {
+-        keymap!({ $label $(sticky=$sticky)? $($($key)|+ => $value,)+ })
++        keymap!({ $label $(sticky=$sticky)? $(fallback=$fallback)? $($($key)|+ => $value,)+ })
+     };
+ 
+     (@trie [$($cmd:ident),* $(,)?]) => {
+@@ -94,7 +94,7 @@ macro_rules! keymap {
+     };
+ 
+     (
+-        { $label:literal $(sticky=$sticky:literal)? $($($key:literal)|+ => $value:tt,)+ }
++        { $label:literal $(sticky=$sticky:literal)? $(fallback=$fallback:ident)? $($($key:literal)|+ => $value:tt,)+ }
+     ) => {
+         // modified from the hashmap! macro
+         {
+@@ -111,6 +111,7 @@ macro_rules! keymap {
+                 )+
+             )*
+             let mut _node = $crate::keymap::KeyTrieNode::new($label, _map);
++            $( _node.fallback = Some($crate::commands::FallbackCommand::$fallback); )?
+             $( _node.is_sticky = $sticky; )?
+             $crate::keymap::KeyTrie::Node(_node)
+         }
+diff --git a/helix-term/src/ui/editor.rs b/helix-term/src/ui/editor.rs
+index 156484af..7992c595 100644
+--- a/helix-term/src/ui/editor.rs
++++ b/helix-term/src/ui/editor.rs
+@@ -1273,6 +1273,9 @@ fn handle_keymap_event(
+                 }
+             }
+             KeymapResult::NotFound | KeymapResult::Cancelled(_) => return Some(key_result),
++            KeymapResult::Fallback(fallback, ch) => {
++                fallback.execute(cxt, *ch);
++            }
+         }
+         None
+     }

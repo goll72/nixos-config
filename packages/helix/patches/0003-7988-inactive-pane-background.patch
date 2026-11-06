@@ -1,0 +1,27 @@
+diff --git a/book/src/themes.md b/book/src/themes.md
+index b8aa5dee..ac2b7bca 100644
+--- a/book/src/themes.md
++++ b/book/src/themes.md
+@@ -307,6 +307,7 @@ #### Interface
+ | Key                               | Notes                                                                                          |
+ | ---                               | ---                                                                                            |
+ | `ui.background`                   |                                                                                                |
++| `ui.background.inactive`          | Background of unfocused document                                                               |
+ | `ui.background.separator`         | Picker separator below input line                                                              |
+ | `ui.cursor`                       |                                                                                                |
+ | `ui.cursor.normal`                |                                                                                                |
+diff --git a/helix-term/src/ui/editor.rs b/helix-term/src/ui/editor.rs
+index bd3000d2..156484af 100644
+--- a/helix-term/src/ui/editor.rs
++++ b/helix-term/src/ui/editor.rs
+@@ -202,6 +202,10 @@ pub fn render_view(
+ 
+             let mut decorations = DecorationManager::default();
+ 
++            if !(is_focused && self.terminal_focused) {
++                surface.set_style(area, theme.get("ui.background.inactive"));
++            }
++
+             if is_focused && config.cursorline {
+                 decorations.add_decoration(Self::cursorline(doc, view, theme));
+             }

@@ -1,0 +1,726 @@
+diff --git a/book/src/generated/static-cmd.md b/book/src/generated/static-cmd.md
+index a1e38582..8142547f 100644
+--- a/book/src/generated/static-cmd.md
++++ b/book/src/generated/static-cmd.md
+@@ -53,9 +53,15 @@
+ | `extend_prev_char` | Extend to previous occurrence of char | select: `` F `` |
+ | `repeat_last_motion` | Repeat last motion | normal: `` <A-.> ``, select: `` <A-.> `` |
+ | `replace` | Replace with new char | normal: `` r ``, select: `` r `` |
+-| `switch_case` | Switch (toggle) case | normal: `` ~ ``, select: `` ~ `` |
+-| `switch_to_uppercase` | Switch to uppercase | normal: `` <A-`> ``, select: `` <A-`> `` |
+-| `switch_to_lowercase` | Switch to lowercase | normal: `` ` ``, select: `` ` `` |
++| `switch_to_alternate_case` | Switch to aLTERNATE cASE | normal: `` ~ ``, `` `a ``, select: `` ~ ``, `` `a `` |
++| `switch_to_uppercase` | Switch to UPPERCASE | normal: `` `u ``, select: `` `u `` |
++| `switch_to_lowercase` | Switch to lowercase | normal: `` `l ``, select: `` `l `` |
++| `switch_to_pascal_case` | Switch to PascalCase | normal: `` `p ``, select: `` `p `` |
++| `switch_to_camel_case` | Switch to camelCase | normal: `` `c ``, select: `` `c `` |
++| `switch_to_title_case` | Switch to Title Case | normal: `` `t ``, select: `` `t `` |
++| `switch_to_sentence_case` | Switch to Sentence case | normal: `` `S ``, select: `` `S `` |
++| `switch_to_snake_case` | Switch to snake_case | normal: `` `s ``, select: `` `s `` |
++| `switch_to_kebab_case` | Switch to kebab-case | normal: `` `k ``, select: `` `k `` |
+ | `page_up` | Move page up | normal: `` <C-b> ``, `` Z<C-b> ``, `` z<C-b> ``, `` <pageup> ``, `` Z<pageup> ``, `` z<pageup> ``, select: `` <C-b> ``, `` Z<C-b> ``, `` z<C-b> ``, `` <pageup> ``, `` Z<pageup> ``, `` z<pageup> ``, insert: `` <pageup> `` |
+ | `page_down` | Move page down | normal: `` <C-f> ``, `` Z<C-f> ``, `` z<C-f> ``, `` <pagedown> ``, `` Z<pagedown> ``, `` z<pagedown> ``, select: `` <C-f> ``, `` Z<C-f> ``, `` z<C-f> ``, `` <pagedown> ``, `` Z<pagedown> ``, `` z<pagedown> ``, insert: `` <pagedown> `` |
+ | `half_page_up` | Move half page up |  |
+diff --git a/book/src/keymap.md b/book/src/keymap.md
+index dec23213..8a57cef5 100644
+--- a/book/src/keymap.md
++++ b/book/src/keymap.md
+@@ -11,6 +11,7 @@ ## Keymap
+     - [Goto mode](#goto-mode)
+     - [Match mode](#match-mode)
+     - [Window mode](#window-mode)
++    - [Case Mode](#case-mode)
+     - [Space mode](#space-mode)
+       - [Popup](#popup)
+       - [Completion Menu](#completion-menu)
+@@ -75,9 +76,7 @@ ### Changes
+ | -----       | -----------                                                          | -------                   |
+ | `r`         | Replace with a character                                             | `replace`                 |
+ | `R`         | Replace with yanked text                                             | `replace_with_yanked`     |
+-| `~`         | Switch case of the selected text                                     | `switch_case`             |
+-| `` ` ``     | Set the selected text to lower case                                  | `switch_to_lowercase`     |
+-| `` Alt-` `` | Set the selected text to upper case                                  | `switch_to_uppercase`     |
++| `~`         | Switch case of the selected text                                     | `switch_to_alternate_case`|
+ | `i`         | Insert before selection                                              | `insert_mode`             |
+ | `a`         | Insert after selection (append)                                      | `append_mode`             |
+ | `I`         | Insert at the start of the line                                      | `insert_at_line_start`    |
+@@ -178,6 +177,7 @@ ### Minor modes
+ | -----    | -----------                                        | -------        |
+ | `v`      | Enter [select (extend) mode](#select--extend-mode) | `select_mode`  |
+ | `g`      | Enter [goto mode](#goto-mode)                      | N/A            |
++| ` ` `    | Enter [case mode](#case-mode)                    | N/A            |
+ | `m`      | Enter [match mode](#match-mode)                    | N/A            |
+ | `:`      | Enter command mode                                 | `command_mode` |
+ | `z`      | Enter [view mode](#view-mode)                      | N/A            |
+@@ -261,6 +261,24 @@ #### Goto mode
+ 
+ > 💡 On a PDF buffer these keys move by page instead of by line: `<n>g` and `<n>G` go to page `<n>` (clamped to the last page), `g` to the first page and `ge` to the last. `h`/`k` and `j`/`l` turn one page at a time, and `:media-goto-page` takes a page number from the command line.
+ 
++#### Case mode
++
++Accessed by typing ` ` ` in [normal mode](#normal-mode).
++
++Various commands for changing the case of text in different ways.
++
++| Key              | Description                                      | Command                    |
++| -----            | -----------                                      | -------                    |
++| `l`              | Switch text to lowercase                         | `switch_to_lowercase`      |
++| `u`              | Switch text to UPPERCASE                         | `switch_to_uppercase`      |
++| `p`              | Switch text to Pascal Case                       | `switch_to_pascal_case`    |
++| `c`              | Switch text to camelCase                         | `switch_to_camel_case`     |
++| `t`              | Switch text to Title Case                        | `switch_to_title_case`     |
++| `S`              | Switch text to Sentence case                     | `switch_to_sentence_case`  |
++| `s`              | Switch text to snake_case                        | `switch_to_snake_case`     |
++| `k`              | Switch text to kebab-case                        | `switch_to_kebab_case`     |
++| `a`              | Switch text to aLTERNATE cASE                    | `switch_to_alternate_case` |
++
+ #### Match mode
+ 
+ Accessed by typing `m` in [normal mode](#normal-mode).
+diff --git a/helix-core/src/case_conversion.rs b/helix-core/src/case_conversion.rs
+index 2054a2bb..e2cbffaf 100644
+--- a/helix-core/src/case_conversion.rs
++++ b/helix-core/src/case_conversion.rs
+@@ -1,69 +1,379 @@
++use std::char::{ToLowercase, ToUppercase};
++
+ use crate::Tendril;
+ 
+ // todo: should this be grapheme aware?
+ 
+-pub fn to_pascal_case(text: impl Iterator<Item = char>) -> Tendril {
+-    let mut res = Tendril::new();
+-    to_pascal_case_with(text, &mut res);
+-    res
++/// Whether there is a camelCase transition, such as at 'l' -> 'C'
++fn has_camel_transition(prev: Option<char>, current: char) -> bool {
++    current.is_uppercase() && prev.is_some_and(|ch| ch.is_lowercase())
++}
++
++/// In-place conversion into `UPPERCASE`
++pub fn into_uppercase(chars: impl Iterator<Item = char>, buf: &mut Tendril) {
++    *buf = chars.flat_map(char::to_uppercase).collect();
++}
++
++/// In-place conversion into `lowercase`
++pub fn into_lowercase(chars: impl Iterator<Item = char>, buf: &mut Tendril) {
++    *buf = chars.flat_map(char::to_lowercase).collect();
+ }
+ 
+-pub fn to_pascal_case_with(text: impl Iterator<Item = char>, buf: &mut Tendril) {
+-    let mut at_word_start = true;
+-    for c in text {
+-        // we don't count _ as a word char here so case conversions work well
+-        if !c.is_alphanumeric() {
+-            at_word_start = true;
++/// Change case of a character iterator and put the result into the `buf`.
++///
++/// # Arguments
++///
++/// - `separator`: Choose what character to insert between the words
++fn case_converter_with_separator(
++    chars: impl Iterator<Item = char>,
++    buf: &mut Tendril,
++    separator: char,
++) {
++    let mut prev = None;
++
++    for current in chars.skip_while(|ch| ch.is_whitespace()) {
++        if !current.is_alphanumeric() {
++            prev = Some(current);
+             continue;
+         }
+-        if at_word_start {
+-            at_word_start = false;
+-            buf.extend(c.to_uppercase());
+-        } else {
+-            buf.push(c)
++
++        // "email@somewhere" => transition at 'l' -> '@'
++        // first character must not be separator, e.g. @emailSomewhere should not become -email-somewhere
++        let has_alphanum_transition = !prev.is_some_and(|p| p.is_alphanumeric()) && !buf.is_empty();
++
++        if has_camel_transition(prev, current) || has_alphanum_transition {
++            buf.push(separator);
+         }
++
++        buf.extend(current.to_lowercase());
++
++        prev = Some(current);
+     }
+ }
+ 
+-pub fn to_upper_case_with(text: impl Iterator<Item = char>, buf: &mut Tendril) {
+-    for c in text {
+-        for c in c.to_uppercase() {
+-            buf.push(c)
+-        }
+-    }
++/// In-place conversion into `kebab-case`
++pub fn into_kebab_case(chars: impl Iterator<Item = char>, buf: &mut Tendril) {
++    case_converter_with_separator(chars, buf, '-');
++}
++
++/// In-place conversion into `PascalCase`
++pub fn into_snake_case(chars: impl Iterator<Item = char>, buf: &mut Tendril) {
++    case_converter_with_separator(chars, buf, '_');
++}
++
++// todo: should this be grapheme aware?
++
++/// Choose how words are capitalized
++#[derive(PartialEq, Eq, PartialOrd, Ord, Clone, Copy)]
++enum CapitalizeWords {
++    /// # Examples
++    ///
++    /// - oneTwoThree
++    /// - one-Two-Three
++    /// - one Two Three
++    AllButFirst,
++    /// # Examples
++    ///
++    /// - OneTwoThree
++    /// - One-Two-Three
++    /// - One Two Three
++    All,
++    /// # Examples
++    ///
++    /// - Onetwothree
++    /// - One-two-three
++    /// - One two three
++    First,
+ }
+ 
+-pub fn to_lower_case_with(text: impl Iterator<Item = char>, buf: &mut Tendril) {
+-    for c in text {
+-        for c in c.to_lowercase() {
+-            buf.push(c)
++/// Change case of a character iterator and put the result into the `buf`.
++///
++/// # Arguments
++///
++/// - `capitalize`: Choose how to capitalize the output
++/// - `separator`: Character to insert between the words
++fn case_converter_with_capitalization_and_separator(
++    chars: impl Iterator<Item = char>,
++    buf: &mut Tendril,
++    capitalize: CapitalizeWords,
++    separator: Option<char>,
++) {
++    let mut should_capitalize_current = capitalize != CapitalizeWords::AllButFirst;
++    let mut prev = None;
++
++    let add_separator_if_needed = |prev: Option<char>, buf: &mut Tendril| {
++        if let Some(separator) = separator {
++            // We do not want to add a separator when the previous char is not a separator
++            // For example, snake__case is invalid
++            if prev.is_some_and(|ch| ch != separator) {
++                buf.push(separator);
++            }
++        }
++    };
++
++    for current in chars.skip_while(|ch| ch.is_whitespace()) {
++        if !current.is_alphanumeric() {
++            should_capitalize_current = capitalize != CapitalizeWords::First;
++            add_separator_if_needed(prev, buf);
++            prev = Some(current);
++            continue;
++        }
++
++        if has_camel_transition(prev, current) {
++            add_separator_if_needed(prev, buf);
++            should_capitalize_current = capitalize != CapitalizeWords::First;
++        }
++
++        if should_capitalize_current {
++            buf.extend(current.to_uppercase());
++            should_capitalize_current = false;
++        } else {
++            buf.extend(current.to_lowercase());
+         }
++
++        prev = Some(current);
+     }
++
++    *buf = buf.trim_end().into();
++}
++
++/// In-place conversion into `Title Case`
++pub fn into_title_case(chars: impl Iterator<Item = char>, buf: &mut Tendril) {
++    case_converter_with_capitalization_and_separator(chars, buf, CapitalizeWords::All, Some(' '));
+ }
+ 
+-pub fn to_camel_case(text: impl Iterator<Item = char>) -> Tendril {
+-    let mut res = Tendril::new();
+-    to_camel_case_with(text, &mut res);
+-    res
++/// In-place conversion into `Sentence case`
++pub fn into_sentence_case(chars: impl Iterator<Item = char>, buf: &mut Tendril) {
++    case_converter_with_capitalization_and_separator(chars, buf, CapitalizeWords::First, Some(' '));
+ }
+-pub fn to_camel_case_with(mut text: impl Iterator<Item = char>, buf: &mut Tendril) {
+-    for c in &mut text {
+-        if c.is_alphanumeric() {
+-            buf.extend(c.to_lowercase())
++
++/// In-place conversion into `camelCase`
++pub fn into_camel_case(chars: impl Iterator<Item = char>, buf: &mut Tendril) {
++    case_converter_with_capitalization_and_separator(
++        chars,
++        buf,
++        CapitalizeWords::AllButFirst,
++        None,
++    );
++}
++
++/// In-place conversion into `PascalCase`
++pub fn into_pascal_case(chars: impl Iterator<Item = char>, buf: &mut Tendril) {
++    case_converter_with_capitalization_and_separator(chars, buf, CapitalizeWords::All, None);
++}
++
++enum AlternateCase {
++    Upper(ToUppercase),
++    Lower(ToLowercase),
++    Keep(Option<char>),
++}
++
++impl Iterator for AlternateCase {
++    type Item = char;
++
++    fn next(&mut self) -> Option<Self::Item> {
++        match self {
++            AlternateCase::Upper(upper) => upper.next(),
++            AlternateCase::Lower(lower) => lower.next(),
++            AlternateCase::Keep(ch) => ch.take(),
+         }
+     }
+-    let mut at_word_start = false;
+-    for c in text {
+-        // we don't count _ as a word char here so case conversions work well
+-        if !c.is_alphanumeric() {
+-            at_word_start = true;
+-            continue;
++
++    fn size_hint(&self) -> (usize, Option<usize>) {
++        match self {
++            AlternateCase::Upper(upper) => upper.size_hint(),
++            AlternateCase::Lower(lower) => lower.size_hint(),
++            AlternateCase::Keep(ch) => {
++                let size = ch.is_some() as usize;
++                (size, Some(size))
++            }
+         }
+-        if at_word_start {
+-            at_word_start = false;
+-            buf.extend(c.to_uppercase());
+-        } else {
+-            buf.push(c)
++    }
++}
++
++impl ExactSizeIterator for AlternateCase {}
++
++pub fn into_alternate_case(chars: impl Iterator<Item = char>, buf: &mut Tendril) {
++    *buf = chars
++        .flat_map(|ch| {
++            if ch.is_lowercase() {
++                AlternateCase::Upper(ch.to_uppercase())
++            } else if ch.is_uppercase() {
++                AlternateCase::Lower(ch.to_lowercase())
++            } else {
++                AlternateCase::Keep(Some(ch))
++            }
++        })
++        .collect();
++}
++
++/// Create functional versions of the "into_*" case functions that take a `&mut Tendril`
++macro_rules! to_case {
++    ($($into_case:ident => $to_case:ident)*) => {
++        $(
++            pub fn $to_case(chars: impl Iterator<Item = char>) -> Tendril {
++                let mut res = Tendril::new();
++                $into_case(chars, &mut res);
++                res
++            }
++        )*
++    };
++}
++
++to_case! {
++    into_camel_case => to_camel_case
++    into_lowercase => to_lowercase
++    into_uppercase => to_uppercase
++    into_pascal_case => to_pascal_case
++    into_alternate_case => to_alternate_case
++    into_title_case => to_title_case
++    into_kebab_case => to_kebab_case
++    into_snake_case => to_snake_case
++    into_sentence_case => to_sentence_case
++}
++
++#[cfg(test)]
++mod tests {
++    macro_rules! test_case_converters {
++        ($($case_converter:ident: $($input:literal -> $expected:literal)*)*) => {
++            $(
++                #[test]
++                fn $case_converter() {
++                    for (input, expected) in [ $(($input, $expected),)* ] {
++                        assert_eq!(super::$case_converter(input.chars()), expected, "{input}");
++                    }
++                }
++            )*
+         }
+     }
++
++    test_case_converters! {
++        to_camel_case:
++            "hello world" -> "helloWorld"
++            "Hello World" -> "helloWorld"
++            "hello_world" -> "helloWorld"
++            "HELLO_WORLD" -> "helloWorld"
++            "hello-world" -> "helloWorld"
++            "hello  world" -> "helloWorld"
++            "   hello world" -> "helloWorld"
++            "hello\tworld" -> "helloWorld"
++            "HELLO  WORLD" -> "helloWorld"
++            "HELLO-world" -> "helloWorld"
++            "hello  WORLD " -> "helloWorld"
++            "helloWorld" -> "helloWorld"
++
++        to_pascal_case:
++            "hello world" -> "HelloWorld"
++            "Hello World" -> "HelloWorld"
++            "hello_world" -> "HelloWorld"
++            "HELLO_WORLD" -> "HelloWorld"
++            "hello-world" -> "HelloWorld"
++            "hello  world" -> "HelloWorld"
++            "   hello world" -> "HelloWorld"
++            "hello\tworld" -> "HelloWorld"
++            "HELLO  WORLD" -> "HelloWorld"
++            "HELLO-world" -> "HelloWorld"
++            "hello  WORLD " -> "HelloWorld"
++            "helloWorld" -> "HelloWorld"
++
++        to_snake_case:
++            "helloWorld" -> "hello_world"
++            "HelloWorld" -> "hello_world"
++            "hello world" -> "hello_world"
++            "HELLO WORLD" -> "hello_world"
++            "hello-world" -> "hello_world"
++            "hello  world" -> "hello_world"
++            "hello\tworld" -> "hello_world"
++            "HELLO  WORLD" -> "hello_world"
++            "HELLO-world" -> "hello_world"
++            "hello  WORLD " -> "hello_world"
++            "helloWorld" -> "hello_world"
++            "helloWORLD123" -> "hello_world123"
++
++        to_kebab_case:
++            "helloWorld" -> "hello-world"
++            "HelloWorld" -> "hello-world"
++            "hello_world" -> "hello-world"
++            "HELLO_WORLD" -> "hello-world"
++            "hello-world" -> "hello-world"
++            "hello  world" -> "hello-world"
++            "hello\tworld" -> "hello-world"
++            "HELLO  WORLD" -> "hello-world"
++            "HELLO-world" -> "hello-world"
++            "hello  WORLD " -> "hello-world"
++            "helloWorld" -> "hello-world"
++            "HelloWorld123" -> "hello-world123"
++
++        to_title_case:
++            "hello world" -> "Hello World"
++            "hello world again" -> "Hello World Again"
++            "Hello World" -> "Hello World"
++            "hello_world" -> "Hello World"
++            "HELLO_WORLD" -> "Hello World"
++            "hello-world" -> "Hello World"
++            "hello  world" -> "Hello World"
++            "   hello world" -> "Hello World"
++            "hello\tworld" -> "Hello World"
++            "HELLO  WORLD" -> "Hello World"
++            "HELLO-world" -> "Hello World"
++            "hello  WORLD " -> "Hello World"
++            "helloWorld" -> "Hello World"
++
++        to_sentence_case:
++            "hello world" -> "Hello world"
++            "hello world again" -> "Hello world again"
++            "Hello World" -> "Hello world"
++            "hello_world" -> "Hello world"
++            "HELLO_WORLD" -> "Hello world"
++            "hello-world" -> "Hello world"
++            "hello  world" -> "Hello world"
++            "   hello world" -> "Hello world"
++            "hello\tworld" -> "Hello world"
++            "HELLO  WORLD" -> "Hello world"
++            "HELLO-world" -> "Hello world"
++            "hello  WORLD " -> "Hello world"
++            "helloWorld" -> "Hello world"
++
++        to_alternate_case:
++            "hello world" -> "HELLO WORLD"
++            "Hello World" -> "hELLO wORLD"
++            "helLo_woRlD" -> "HELlO_WOrLd"
++            "HELLO_world" -> "hello_WORLD"
++            "hello-world" -> "HELLO-WORLD"
++            "Hello-world" -> "hELLO-WORLD"
++            "hello" -> "HELLO"
++            "HELLO" -> "hello"
++            "hello123" -> "HELLO123"
++            "hello WORLD" -> "HELLO world"
++            "HELLO123 world" -> "hello123 WORLD"
++            "world hello" -> "WORLD HELLO"
++
++        to_uppercase:
++            "helloWorld" -> "HELLOWORLD"
++            "hello world" -> "HELLO WORLD"
++            "hello_world" -> "HELLO_WORLD"
++            "Hello-World" -> "HELLO-WORLD"
++            "Hello" -> "HELLO"
++            "world" -> "WORLD"
++            "hello  world" -> "HELLO  WORLD"
++            "helloworld" -> "HELLOWORLD"
++            "hello-world" -> "HELLO-WORLD"
++            "hello_world_here" -> "HELLO_WORLD_HERE"
++            "hello_WORLD" -> "HELLO_WORLD"
++            "mixedCaseString" -> "MIXEDCASESTRING"
++
++        to_lowercase:
++            "HelloWorld" -> "helloworld"
++            "HELLO WORLD" -> "hello world"
++            "hello_world" -> "hello_world"
++            "Hello-World" -> "hello-world"
++            "Hello" -> "hello"
++            "WORLD" -> "world"
++            "hello  world" -> "hello  world"
++            "HELLOworld" -> "helloworld"
++            "hello-world" -> "hello-world"
++            "hello_world_here" -> "hello_world_here"
++            "HELLO_world" -> "hello_world"
++            "MixEdCaseString" -> "mixedcasestring"
++    }
+ }
+diff --git a/helix-core/src/snippets/elaborate.rs b/helix-core/src/snippets/elaborate.rs
+index e6dd1c63..80e2a8dd 100644
+--- a/helix-core/src/snippets/elaborate.rs
++++ b/helix-core/src/snippets/elaborate.rs
+@@ -10,9 +10,9 @@
+ use regex_cursor::regex_automata::util::syntax::Config as RegexConfig;
+ use ropey::RopeSlice;
+ 
+-use crate::case_conversion::to_lower_case_with;
+-use crate::case_conversion::to_upper_case_with;
+-use crate::case_conversion::{to_camel_case_with, to_pascal_case_with};
++use crate::case_conversion::into_lowercase;
++use crate::case_conversion::into_uppercase;
++use crate::case_conversion::{into_camel_case, into_pascal_case};
+ use crate::snippets::parser::{self, CaseChange, FormatItem};
+ use crate::snippets::{TabstopIdx, LAST_TABSTOP_IDX};
+ use crate::Tendril;
+@@ -345,15 +345,15 @@ pub fn apply(&self, mut doc: RopeSlice<'_>, range: Range) -> Tendril {
+                         if let Some(cap) = cap.get_group(i).filter(|i| !i.is_empty()) {
+                             let mut chars = doc.byte_slice(cap.range()).chars();
+                             match change {
+-                                CaseChange::Upcase => to_upper_case_with(chars, &mut buf),
+-                                CaseChange::Downcase => to_lower_case_with(chars, &mut buf),
++                                CaseChange::Upcase => into_uppercase(chars, &mut buf),
++                                CaseChange::Downcase => into_lowercase(chars, &mut buf),
+                                 CaseChange::Capitalize => {
+                                     let first_char = chars.next().unwrap();
+                                     buf.extend(first_char.to_uppercase());
+                                     buf.extend(chars);
+                                 }
+-                                CaseChange::PascalCase => to_pascal_case_with(chars, &mut buf),
+-                                CaseChange::CamelCase => to_camel_case_with(chars, &mut buf),
++                                CaseChange::PascalCase => into_pascal_case(chars, &mut buf),
++                                CaseChange::CamelCase => into_camel_case(chars, &mut buf),
+                             }
+                         }
+                     }
+diff --git a/helix-term/src/commands.rs b/helix-term/src/commands.rs
+index 59403ad3..768dfba4 100644
+--- a/helix-term/src/commands.rs
++++ b/helix-term/src/commands.rs
+@@ -24,7 +24,7 @@
+ pub use typed::*;
+ 
+ use helix_core::{
+-    char_idx_at_visual_offset,
++    case_conversion, char_idx_at_visual_offset,
+     chars::char_is_word,
+     command_line::{self, Args},
+     comment,
+@@ -77,7 +77,6 @@
+ 
+ use crate::job::{self, Jobs};
+ use std::{
+-    char::{ToLowercase, ToUppercase},
+     cmp::Ordering,
+     collections::{HashMap, HashSet},
+     error::Error,
+@@ -379,9 +378,15 @@ pub(crate) fn doc_mut(&mut self) -> Option<&mut String> {
+         extend_prev_char, "Extend to previous occurrence of char",
+         repeat_last_motion, "Repeat last motion",
+         replace, "Replace with new char",
+-        switch_case, "Switch (toggle) case",
+-        switch_to_uppercase, "Switch to uppercase",
++        switch_to_alternate_case, "Switch to aLTERNATE cASE",
++        switch_to_uppercase, "Switch to UPPERCASE",
+         switch_to_lowercase, "Switch to lowercase",
++        switch_to_pascal_case, "Switch to PascalCase",
++        switch_to_camel_case, "Switch to camelCase",
++        switch_to_title_case, "Switch to Title Case",
++        switch_to_sentence_case, "Switch to Sentence case",
++        switch_to_snake_case, "Switch to snake_case",
++        switch_to_kebab_case, "Switch to kebab-case",
+         page_up, "Move page up",
+         page_down, "Move page down",
+         half_page_up, "Move half page up",
+@@ -2079,80 +2084,62 @@ fn replace(cx: &mut Context) {
+     })
+ }
+ 
++#[inline]
+ fn switch_case_impl<F>(cx: &mut Context, change_fn: F)
+ where
+-    F: Fn(RopeSlice) -> Tendril,
++    F: for<'a> Fn(&mut (dyn Iterator<Item = char> + 'a)) -> Tendril,
+ {
+     let (view, doc) = current!(cx.editor);
+-    let selection = doc.selection(view.id);
+-    let transaction = Transaction::change_by_selection(doc.text(), selection, |range| {
+-        let text: Tendril = change_fn(range.slice(doc.text().slice(..)));
++    let view_id = view.id;
+ 
+-        (range.from(), range.to(), Some(text))
+-    });
++    let selection = doc.selection(view_id);
+ 
+-    doc.apply(&transaction, view.id);
++    let transaction = {
++        Transaction::change_by_selection(doc.text(), selection, |range| {
++            let mut chars = range.slice(doc.text().slice(..)).chars();
++            let text: Tendril = change_fn(&mut chars);
++            (range.from(), range.to(), Some(text))
++        })
++    };
++
++    doc.apply(&transaction, view_id);
+     exit_select_mode(cx);
+ }
+ 
+-enum CaseSwitcher {
+-    Upper(ToUppercase),
+-    Lower(ToLowercase),
+-    Keep(Option<char>),
++fn switch_to_pascal_case(cx: &mut Context) {
++    switch_case_impl(cx, |chars| case_conversion::to_pascal_case(chars))
+ }
+ 
+-impl Iterator for CaseSwitcher {
+-    type Item = char;
++fn switch_to_camel_case(cx: &mut Context) {
++    switch_case_impl(cx, |chars| case_conversion::to_camel_case(chars))
++}
+ 
+-    fn next(&mut self) -> Option<Self::Item> {
+-        match self {
+-            CaseSwitcher::Upper(upper) => upper.next(),
+-            CaseSwitcher::Lower(lower) => lower.next(),
+-            CaseSwitcher::Keep(ch) => ch.take(),
+-        }
+-    }
++fn switch_to_lowercase(cx: &mut Context) {
++    switch_case_impl(cx, |chars| case_conversion::to_lowercase(chars))
++}
+ 
+-    fn size_hint(&self) -> (usize, Option<usize>) {
+-        match self {
+-            CaseSwitcher::Upper(upper) => upper.size_hint(),
+-            CaseSwitcher::Lower(lower) => lower.size_hint(),
+-            CaseSwitcher::Keep(ch) => {
+-                let n = if ch.is_some() { 1 } else { 0 };
+-                (n, Some(n))
+-            }
+-        }
+-    }
++fn switch_to_uppercase(cx: &mut Context) {
++    switch_case_impl(cx, |chars| case_conversion::to_uppercase(chars))
+ }
+ 
+-impl ExactSizeIterator for CaseSwitcher {}
++fn switch_to_alternate_case(cx: &mut Context) {
++    switch_case_impl(cx, |chars| case_conversion::to_alternate_case(chars))
++}
+ 
+-fn switch_case(cx: &mut Context) {
+-    switch_case_impl(cx, |string| {
+-        string
+-            .chars()
+-            .flat_map(|ch| {
+-                if ch.is_lowercase() {
+-                    CaseSwitcher::Upper(ch.to_uppercase())
+-                } else if ch.is_uppercase() {
+-                    CaseSwitcher::Lower(ch.to_lowercase())
+-                } else {
+-                    CaseSwitcher::Keep(Some(ch))
+-                }
+-            })
+-            .collect()
+-    });
++fn switch_to_title_case(cx: &mut Context) {
++    switch_case_impl(cx, |chars| case_conversion::to_title_case(chars))
+ }
+ 
+-fn switch_to_uppercase(cx: &mut Context) {
+-    switch_case_impl(cx, |string| {
+-        string.chunks().map(|chunk| chunk.to_uppercase()).collect()
+-    });
++fn switch_to_sentence_case(cx: &mut Context) {
++    switch_case_impl(cx, |chars| case_conversion::to_sentence_case(chars))
+ }
+ 
+-fn switch_to_lowercase(cx: &mut Context) {
+-    switch_case_impl(cx, |string| {
+-        string.chunks().map(|chunk| chunk.to_lowercase()).collect()
+-    });
++fn switch_to_snake_case(cx: &mut Context) {
++    switch_case_impl(cx, |chars| case_conversion::to_snake_case(chars))
++}
++
++fn switch_to_kebab_case(cx: &mut Context) {
++    switch_case_impl(cx, |chars| case_conversion::to_kebab_case(chars))
+ }
+ 
+ pub fn scroll(cx: &mut Context, offset: usize, direction: Direction, sync_cursor: bool) {
+diff --git a/helix-term/src/keymap/default.rs b/helix-term/src/keymap/default.rs
+index 1882e6f9..e8f9ce69 100644
+--- a/helix-term/src/keymap/default.rs
++++ b/helix-term/src/keymap/default.rs
+@@ -19,9 +19,18 @@ pub fn default() -> HashMap<Mode, KeyTrie> {
+         "R" => replace_with_yanked,
+         "A-." =>  repeat_last_motion,
+ 
+-        "~" => switch_case,
+-        "`" => switch_to_lowercase,
+-        "A-`" => switch_to_uppercase,
++        "~" => switch_to_alternate_case,
++        "`" => { "Case"
++            "a" => switch_to_alternate_case,
++            "l" => switch_to_lowercase,
++            "u" => switch_to_uppercase,
++            "p" => switch_to_pascal_case,
++            "c" => switch_to_camel_case,
++            "t" => switch_to_title_case,
++            "S" => switch_to_sentence_case,
++            "s" => switch_to_snake_case,
++            "k" => switch_to_kebab_case,
++        },
+ 
+         "home" => goto_line_start,
+         "end" => goto_line_end,

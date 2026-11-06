@@ -12,7 +12,10 @@ in
   options.programs.maki = {
     enable = lib.mkEnableOption "maki, an efficient AI coding agent extendable by neovim-like Lua plugins";
 
-    package = lib.mkPackageOption pkgs "maki" { nullable = true; };
+    package = lib.mkPackageOption pkgs "maki" {
+      nullable = true;
+      default = null;
+    };
 
     settings = lib.mkOption {
       type = lib.types.attrsOf lib.types.anything;

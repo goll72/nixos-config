@@ -1,0 +1,962 @@
+diff --git a/book/src/editor.md b/book/src/editor.md
+index 9105b47e..6cc03690 100644
+--- a/book/src/editor.md
++++ b/book/src/editor.md
+@@ -1,6 +1,7 @@
+ ## Editor
+ 
+ - [`[editor]` Section](#editor-section)
++- [`[editor.breadcrumb]` Section](#editorbreadcrumb-section)
+ - [`[editor.clipboard-provider]` Section](#editorclipboard-provider-section)
+ - [`[editor.statusline]` Section](#editorstatusline-section)
+ - [`[editor.lsp]` Section](#editorlsp-section)
+@@ -77,6 +78,26 @@ ### `[editor]` Section
+ 
+ [^3]: In most cases, you also need to enable the `auto-format` setting under `languages.toml`. You can find the reasoning [here](https://github.com/helix-editor/helix/discussions/9043#discussioncomment-7811497).
+ 
++### `[editor.breadcrumb]` Section
++
++Allows configuration of the breadcrumb navigation bar.
++
++|  Setting |                 Description                     | Default |
++|----------|-------------------------------------------------|---------|
++| `enable` | Whether to enable the breadcrumb navigation bar | `false` |
++|  `path`  | Selecting how much path information is shown    | `"full"`|
++
++```toml
++[editor.breadcrumb]
++enable = true
++# full: helix-term > src > commands > typed.rs > TypeableCommand > name
++# file: typed.rs > TypeableCommand > name
++# none: TypeableCommand > name
++path = "full|file|none"
++```
++
++The bar is displayed at the top of the view.
++
+ ### `[editor.clipboard-provider]` Section
+ 
+ Helix can be configured either to use a builtin clipboard configuration or to use
+diff --git a/helix-lsp/src/client.rs b/helix-lsp/src/client.rs
+index 08e95b8f..d7da020d 100644
+--- a/helix-lsp/src/client.rs
++++ b/helix-lsp/src/client.rs
+@@ -739,7 +739,7 @@ pub(crate) async fn initialize(&self, enable_snippets: bool) -> Result<lsp::Init
+                         symbol_kind: Some(lsp::SymbolKindCapability {
+                             value_set: Some(lsp::SymbolKind::all()),
+                         }),
+-                        hierarchical_document_symbol_support: Some(false),
++                        hierarchical_document_symbol_support: Some(true),
+                         ..Default::default()
+                     }),
+                     ..Default::default()
+diff --git a/helix-term/src/commands.rs b/helix-term/src/commands.rs
+index 1d1abbc5..969bfa68 100644
+--- a/helix-term/src/commands.rs
++++ b/helix-term/src/commands.rs
+@@ -1376,7 +1376,7 @@ fn goto_window(cx: &mut Context, align: Align) {
+     let (view, doc) = current!(cx.editor);
+     let view_offset = doc.view_offset(view.id);
+ 
+-    let height = view.inner_height();
++    let height = view.inner_height(doc);
+ 
+     // respect user given count if any
+     // - 1 so we have at least one gap in the middle.
+@@ -2153,7 +2153,7 @@ pub fn scroll(cx: &mut Context, offset: usize, direction: Direction, sync_cursor
+     let text = doc.text().slice(..);
+ 
+     let cursor = range.cursor(text);
+-    let height = view.inner_height();
++    let height = view.inner_height(doc);
+ 
+     let scrolloff = config.scrolloff.min(height.saturating_sub(1) / 2);
+     let offset = match direction {
+@@ -2254,50 +2254,50 @@ pub fn scroll(cx: &mut Context, offset: usize, direction: Direction, sync_cursor
+ }
+ 
+ fn page_up(cx: &mut Context) {
+-    let view = view!(cx.editor);
+-    let offset = view.inner_height();
++    let (view, doc) = current_ref!(cx.editor);
++    let offset = view.inner_height(doc);
+     scroll(cx, offset, Direction::Backward, false);
+ }
+ 
+ fn page_down(cx: &mut Context) {
+-    let view = view!(cx.editor);
+-    let offset = view.inner_height();
++    let (view, doc) = current_ref!(cx.editor);
++    let offset = view.inner_height(doc);
+     scroll(cx, offset, Direction::Forward, false);
+ }
+ 
+ fn half_page_up(cx: &mut Context) {
+-    let view = view!(cx.editor);
+-    let offset = view.inner_height() / 2;
++    let (view, doc) = current_ref!(cx.editor);
++    let offset = view.inner_height(doc) / 2;
+     scroll(cx, offset, Direction::Backward, false);
+ }
+ 
+ fn half_page_down(cx: &mut Context) {
+-    let view = view!(cx.editor);
+-    let offset = view.inner_height() / 2;
++    let (view, doc) = current_ref!(cx.editor);
++    let offset = view.inner_height(doc) / 2;
+     scroll(cx, offset, Direction::Forward, false);
+ }
+ 
+ fn page_cursor_up(cx: &mut Context) {
+-    let view = view!(cx.editor);
+-    let offset = view.inner_height();
++    let (view, doc) = current_ref!(cx.editor);
++    let offset = view.inner_height(doc);
+     scroll(cx, offset, Direction::Backward, true);
+ }
+ 
+ fn page_cursor_down(cx: &mut Context) {
+-    let view = view!(cx.editor);
+-    let offset = view.inner_height();
++    let (view, doc) = current_ref!(cx.editor);
++    let offset = view.inner_height(doc);
+     scroll(cx, offset, Direction::Forward, true);
+ }
+ 
+ fn page_cursor_half_up(cx: &mut Context) {
+-    let view = view!(cx.editor);
+-    let offset = view.inner_height() / 2;
++    let (view, doc) = current_ref!(cx.editor);
++    let offset = view.inner_height(doc) / 2;
+     scroll(cx, offset, Direction::Backward, true);
+ }
+ 
+ fn page_cursor_half_down(cx: &mut Context) {
+-    let view = view!(cx.editor);
+-    let offset = view.inner_height() / 2;
++    let (view, doc) = current_ref!(cx.editor);
++    let offset = view.inner_height(doc) / 2;
+     scroll(cx, offset, Direction::Forward, true);
+ }
+ 
+diff --git a/helix-term/src/commands/engine/steel/mod.rs b/helix-term/src/commands/engine/steel/mod.rs
+index 6ce6a823..bd9835c9 100644
+--- a/helix-term/src/commands/engine/steel/mod.rs
++++ b/helix-term/src/commands/engine/steel/mod.rs
+@@ -5715,7 +5715,7 @@ pub fn add_inlay_hint(
+         let doc_text = doc.text();
+         let len_lines = doc_text.len_lines();
+ 
+-        let view_height = view.inner_height();
++        let view_height = view.inner_height(doc);
+         let first_visible_line =
+             doc_text.char_to_line(doc.view_offset(view_id).anchor.min(doc_text.len_chars()));
+         let first_line = first_visible_line.saturating_sub(view_height);
+@@ -5767,7 +5767,7 @@ pub fn remove_inlay_hint_by_id(
+         let doc_text = doc.text();
+         let len_lines = doc_text.len_lines();
+ 
+-        let view_height = view.inner_height();
++        let view_height = view.inner_height(doc);
+         let first_visible_line =
+             doc_text.char_to_line(doc.view_offset(view_id).anchor.min(doc_text.len_chars()));
+         let first_line = first_visible_line.saturating_sub(view_height);
+diff --git a/helix-term/src/commands/lsp.rs b/helix-term/src/commands/lsp.rs
+index bb9e386d..6653cd37 100644
+--- a/helix-term/src/commands/lsp.rs
++++ b/helix-term/src/commands/lsp.rs
+@@ -1368,7 +1368,7 @@ fn compute_inlay_hints_for_view(
+     // will not show half the view with hints and half without while still being faster
+     // than computing all the hints for the full file (which could be dozens of time
+     // longer than the view is).
+-    let view_height = view.inner_height();
++    let view_height = view.inner_height(doc);
+     let first_visible_line =
+         doc_text.char_to_line(doc.view_offset(view_id).anchor.min(doc_text.len_chars()));
+     let first_line = first_visible_line.saturating_sub(view_height);
+diff --git a/helix-term/src/commands/typed.rs b/helix-term/src/commands/typed.rs
+index e6c6ab3b..858a7fe0 100644
+--- a/helix-term/src/commands/typed.rs
++++ b/helix-term/src/commands/typed.rs
+@@ -1991,6 +1991,7 @@ fn lsp_stop(cx: &mut compositor::Context, args: Args, event: PromptEvent) -> any
+                 doc.clear_diagnostics_for_language_server(client.id());
+                 doc.reset_all_inlay_hints();
+                 doc.inlay_hints_oudated = true;
++                doc.clear_document_symbols();
+             }
+         }
+     }
+diff --git a/helix-term/src/handlers.rs b/helix-term/src/handlers.rs
+index b7c6ea79..9feb5127 100644
+--- a/helix-term/src/handlers.rs
++++ b/helix-term/src/handlers.rs
+@@ -24,6 +24,7 @@
+ mod document_colors;
+ mod document_highlight;
+ mod document_links;
++mod document_symbols;
+ mod prompt;
+ mod signature_help;
+ mod snippet;
+@@ -61,6 +62,7 @@ pub fn setup(config: Arc<ArcSwap<Config>>) -> Handlers {
+     signature_help::register_hooks(&handlers);
+     document_highlight::register_hooks(&handlers);
+     code_action_hint::register_hooks(&handlers);
++    document_symbols::register_hooks(&handlers);
+     auto_save::register_hooks(&handlers);
+     diagnostics::register_hooks(&handlers);
+     snippet::register_hooks(&handlers);
+diff --git a/helix-term/src/handlers/document_symbols.rs b/helix-term/src/handlers/document_symbols.rs
+new file mode 100644
+index 00000000..629a9e5b
+--- /dev/null
++++ b/helix-term/src/handlers/document_symbols.rs
+@@ -0,0 +1,139 @@
++use crate::job;
++use helix_core::syntax::config::LanguageServerFeature;
++use helix_event::{cancelable_future, register_hook};
++use helix_lsp::lsp::DocumentSymbolResponse;
++use helix_view::{
++    events::{
++        ConfigDidChange, DocumentDidChange, DocumentDidOpen, LanguageServerExited,
++        LanguageServerInitialized, SelectionDidChange,
++    },
++    handlers::Handlers,
++    DocumentId, Editor,
++};
++
++fn request_document_symbols(editor: &mut Editor, doc_id: DocumentId) {
++    if !editor.config().breadcrumb.enable {
++        return;
++    }
++
++    let Some(doc) = editor.document_mut(doc_id) else {
++        return;
++    };
++
++    let Some(language_server) = doc
++        // Get the first LSP Server that supports `DocumentSymbols`.
++        .language_servers_with_feature(LanguageServerFeature::DocumentSymbols)
++        .next()
++    else {
++        return;
++    };
++
++    let offset_encoding = language_server.offset_encoding();
++    let Some(future) = language_server.document_symbols(doc.identifier()) else {
++        return;
++    };
++    let cancel = doc.document_symbols_controller.restart();
++
++    tokio::spawn(async move {
++        let Some(Ok(Some(response))) = cancelable_future(future, &cancel).await else {
++            return;
++        };
++
++        job::dispatch(move |editor, _| {
++            if let Some(doc) = editor.document_mut(doc_id) {
++                match response {
++                    DocumentSymbolResponse::Nested(symbols) => {
++                        doc.set_document_symbols(symbols, offset_encoding);
++                    }
++                    // TODO: Using the `Location`, it should be possible to map cursor
++                    // to a hierarchical tree?
++                    DocumentSymbolResponse::Flat(_) => {}
++                }
++            }
++        })
++        .await;
++    });
++}
++
++pub(super) fn register_hooks(_handlers: &Handlers) {
++    register_hook!(move |event: &mut DocumentDidOpen<'_>| {
++        let doc_id = event.doc;
++        let view_id = event.editor.tree.focus;
++        request_document_symbols(event.editor, doc_id);
++        if let Some(doc) = event.editor.document_mut(doc_id) {
++            doc.update_breadcrumbs_for_view(view_id);
++        }
++        Ok(())
++    });
++
++    register_hook!(move |event: &mut DocumentDidChange<'_>| {
++        if !event.ghost_transaction {
++            // Cancel the ongoing request, if present.
++            event.doc.document_symbols_controller.cancel();
++            let view_id = event.view;
++            let doc_id = event.doc.id();
++            job::dispatch_blocking(move |editor, _| {
++                request_document_symbols(editor, doc_id);
++                if let Some(doc) = editor.document_mut(doc_id) {
++                    doc.update_breadcrumbs_for_view(view_id);
++                }
++            });
++        }
++        Ok(())
++    });
++
++    register_hook!(move |event: &mut LanguageServerInitialized<'_>| {
++        let view_id = event.editor.tree.focus;
++        if let Some(view) = event.editor.tree.try_get(view_id) {
++            let doc_id = view.doc;
++            request_document_symbols(event.editor, doc_id);
++            if let Some(doc) = event.editor.document_mut(doc_id) {
++                doc.update_breadcrumbs_for_view(view_id);
++            }
++        }
++        Ok(())
++    });
++
++    register_hook!(move |event: &mut LanguageServerExited<'_>| {
++        for doc in event.editor.documents_mut() {
++            if doc.supports_language_server(event.server_id) {
++                doc.clear_document_symbols();
++            }
++        }
++        Ok(())
++    });
++
++    register_hook!(move |event: &mut ConfigDidChange<'_>| {
++        if !event.old.breadcrumb.enable && event.new.breadcrumb.enable {
++            let view_id = event.editor.tree.focus;
++            if let Some(view) = event.editor.tree.try_get(view_id) {
++                let doc_id = view.doc;
++                request_document_symbols(event.editor, doc_id);
++                if let Some(doc) = event.editor.document_mut(doc_id) {
++                    doc.update_breadcrumbs_for_view(view_id);
++                }
++            }
++            return Ok(());
++        }
++
++        if event.old.breadcrumb.enable && !event.new.breadcrumb.enable {
++            for doc in event.editor.documents_mut() {
++                doc.clear_document_symbols();
++            }
++        }
++
++        Ok(())
++    });
++
++    register_hook!(move |event: &mut SelectionDidChange<'_>| {
++        let doc_id = event.doc.id();
++        let view_id = event.view;
++
++        job::dispatch_blocking(move |editor, _| {
++            if let Some(doc) = editor.document_mut(doc_id) {
++                doc.update_breadcrumbs_for_view_inlined(view_id);
++            }
++        });
++        Ok(())
++    });
++}
+diff --git a/helix-term/src/ui/editor.rs b/helix-term/src/ui/editor.rs
+index b31d4d5e..3535b126 100644
+--- a/helix-term/src/ui/editor.rs
++++ b/helix-term/src/ui/editor.rs
+@@ -24,6 +24,7 @@
+     visual_offset_from_anchor, visual_offset_from_block, Change, Position, Range, Selection,
+     Transaction,
+ };
++use helix_lsp::lsp::SymbolKind;
+ use helix_view::{
+     annotations::diagnostics::DiagnosticFilter,
+     document::{Mode, SCRATCH_BUFFER_NAME},
+@@ -155,6 +156,7 @@ pub fn spinners_mut(&mut self) -> &mut ProgressSpinners {
+         &mut self.spinners
+     }
+ 
++    #[allow(clippy::too_many_lines)]
+     pub fn render_view(
+         &mut self,
+         doc_id: DocumentId,
+@@ -208,6 +210,10 @@ pub fn render_view(
+                 surface.set_style(area, theme.get("ui.background.inactive"));
+             }
+ 
++            if config.breadcrumb.enable {
++                Self::render_breadcrumb(editor, doc, view, area.with_height(1), surface);
++            }
++
+             if is_focused && config.cursorline {
+                 decorations.add_decoration(Self::cursorline(doc, view, theme));
+             }
+@@ -1124,6 +1130,135 @@ fn make_document_name(doc: &Document, editor: &Editor) -> String {
+         }
+     }
+ 
++    #[allow(clippy::too_many_lines)]
++    pub fn render_breadcrumb(
++        editor: &Editor,
++        doc: &Document,
++        view: &View,
++        viewport: Rect,
++        surface: &mut Surface,
++    ) {
++        use helix_view::editor::BreadcrumbPathOptions::{File, Full};
++
++        #[inline]
++        #[must_use]
++        fn draw_element(
++            surface: &mut Surface,
++            viewport: Rect,
++            x: u16,
++            content: &str,
++            style: Style,
++        ) -> u16 {
++            let remaining = viewport.right().saturating_sub(x) as usize;
++            surface
++                .set_stringn(x, viewport.y, content, remaining, style)
++                .0
++        }
++
++        let config = editor.config();
++
++        let style = editor
++            .theme
++            .try_get_exact("ui.breadcrumb")
++            .unwrap_or_else(|| editor.theme.get("ui.text"));
++
++        surface.clear_with(viewport, style);
++
++        let mut x = viewport.x.saturating_add(1);
++
++        let separator = " > ";
++        let separator_style = editor.theme.get("ui.breadcrumb.separator");
++        let mut draw_separator = false;
++
++        if matches!(config.breadcrumb.path, Full | File) {
++            if let Some(path) = doc.relative_path() {
++                let mut components = path.components().peekable();
++
++                if matches!(config.breadcrumb.path, File) {
++                    // Skip until the filename component.
++                    //
++                    // NOTE:
++                    // We could use `next_back` to get this element directly, but
++                    // this keeps our logic below simpler, with the logic for `Full`
++                    // and `File` being the same below this point.
++                    //
++                    // PERF: The `clone` is cheap; should be equivalent to a `Copy`.
++                    while components.clone().nth(1).is_some() {
++                        components.next();
++                    }
++                }
++
++                while let Some(component) = components.next() {
++                    if draw_separator {
++                        x = draw_element(surface, viewport, x, separator, separator_style);
++                    } else {
++                        draw_separator = true;
++                    }
++
++                    let segment = component.as_os_str().to_string_lossy();
++                    let is_directory = components.peek().is_some();
++
++                    let style = if is_directory {
++                        editor.theme.get("ui.text.directory")
++                    } else {
++                        style
++                    };
++
++                    x = draw_element(surface, viewport, x, &segment, style);
++                }
++            } else {
++                // Handle `[scratch]`
++                x = draw_element(surface, viewport, x, SCRATCH_BUFFER_NAME, style);
++            }
++        }
++
++        // Draw symbols, if any.
++        if let Some(breadcrumb) = doc.breadcrumbs.get(&view.id) {
++            for symbol in breadcrumb.iter() {
++                if draw_separator {
++                    x = draw_element(surface, viewport, x, separator, separator_style);
++                } else {
++                    draw_separator = true;
++                }
++
++                let style = match symbol.kind {
++                    SymbolKind::MODULE
++                    | SymbolKind::NAMESPACE
++                    | SymbolKind::PACKAGE => editor.theme.get("namespace"),
++
++                    SymbolKind::OBJECT // impl Block
++                    | SymbolKind::STRUCT
++                    | SymbolKind::INTERFACE
++                    | SymbolKind::CLASS => editor.theme.get("type"),
++
++                    SymbolKind::METHOD => editor.theme.get("function.method"),
++                    SymbolKind::FUNCTION => editor.theme.get("function"),
++
++                    SymbolKind::ENUM => editor.theme.get("type.enum"),
++                    SymbolKind::ENUM_MEMBER => editor.theme.get("type.enum.variant"),
++
++                   SymbolKind::FIELD | SymbolKind::PROPERTY => {
++                        editor.theme.get("variable.other.member")
++                    }
++
++                    SymbolKind::VARIABLE => editor.theme.get("variable"),
++                    SymbolKind::CONSTANT => editor.theme.get("constant"),
++                    SymbolKind::CONSTRUCTOR => editor.theme.get("constructor"),
++                    SymbolKind::STRING => editor.theme.get("string"),
++                    SymbolKind::NUMBER => editor.theme.get("constant.numeric"),
++                    SymbolKind::BOOLEAN => editor.theme.get("constant.builtin.boolean"),
++                    SymbolKind::ARRAY => editor.theme.get("punctuation.bracket"),
++                    SymbolKind::KEY => editor.theme.get("label"),
++                    SymbolKind::NULL => editor.theme.get("constant.builtin"),
++                    SymbolKind::TYPE_PARAMETER => editor.theme.get("type.parameter"),
++                    _ => style,
++                };
++
++                x = draw_element(surface, viewport, x, symbol.name.as_ref(), style);
++            }
++        }
++    }
++
+     pub fn render_gutter<'d>(
+         editor: &'d Editor,
+         doc: &'d Document,
+diff --git a/helix-term/tests/test/commands/write.rs b/helix-term/tests/test/commands/write.rs
+index fa6c97c5..f8fc6c5d 100644
+--- a/helix-term/tests/test/commands/write.rs
++++ b/helix-term/tests/test/commands/write.rs
+@@ -284,7 +284,7 @@ async fn test_write_quit() -> anyhow::Result<()> {
+ async fn test_write_concurrent() -> anyhow::Result<()> {
+     let mut file = tempfile::NamedTempFile::new()?;
+     let mut command = String::new();
+-    const RANGE: RangeInclusive<i32> = 1..=1000;
++    const RANGE: RangeInclusive<i32> = 1..=100;
+     let mut app = helpers::AppBuilder::new()
+         .with_file(file.path(), None)
+         .build()?;
+diff --git a/helix-view/src/document.rs b/helix-view/src/document.rs
+index f838df8c..712f7057 100644
+--- a/helix-view/src/document.rs
++++ b/helix-view/src/document.rs
+@@ -16,6 +16,7 @@
+ use helix_core::text_annotations::Conceal;
+ use helix_core::text_annotations::{InlineAnnotation, Overlay};
+ use helix_event::TaskController;
++use helix_lsp::lsp::DocumentSymbol;
+ use helix_lsp::util::lsp_pos_to_pos;
+ use helix_stdx::faccess::{copy_metadata, readonly};
+ use helix_vcs::{DiffHandle, DiffProviderRegistry};
+@@ -166,8 +167,10 @@ pub struct Document {
+     ///
+     /// To know if they're up-to-date, check the `id` field in `DocumentInlayHints`.
+     pub(crate) inlay_hints: HashMap<ViewId, DocumentInlayHints>,
++
+     /// Jump label overlays for each view.
+     pub(crate) jump_labels: HashMap<ViewId, Vec<Overlay>>,
++
+     /// LSP document highlights for each view, stored as char ranges.
+     pub(crate) document_highlights: HashMap<ViewId, DocumentHighlights>,
+     /// LSP code action hints for each view.
+@@ -185,6 +188,11 @@ pub struct Document {
+     /// update from the LSP
+     pub inlay_hints_oudated: bool,
+ 
++    // Stores all the symbols of the Document.
++    pub(crate) symbols: Option<DocumentSymbolCache>,
++    /// Breadcrumb trail for each view showing this document.
++    pub breadcrumbs: HashMap<ViewId, Breadcrumbs>,
++
+     path: Option<PathBuf>,
+     relative_path: OnceCell<Option<PathBuf>>,
+     /// Lazily-computed workspace root for this document (the ancestor that contains a `.git` /
+@@ -276,6 +284,7 @@ pub struct Document {
+     pub code_action_controllers: HashMap<ViewId, TaskController>,
+     pub pull_diagnostic_controller: TaskController,
+     pub document_link_controller: TaskController,
++    pub document_symbols_controller: TaskController,
+ 
+     // NOTE: this field should eventually go away - we should use the Editor's syn_loader instead
+     // of storing a copy on every doc. Then we can remove the surrounding `Arc` and use the
+@@ -283,6 +292,83 @@ pub struct Document {
+     syn_loader: Arc<ArcSwap<syntax::Loader>>,
+ }
+ 
++pub struct DocumentSymbolCache {
++    pub tree: Vec<ThinDocumentSymbol>,
++    pub offset_encoding: OffsetEncoding,
++}
++
++#[derive(Debug, Clone)]
++pub struct ThinDocumentSymbol {
++    pub name: Box<str>,
++    pub kind: lsp::SymbolKind,
++    pub range: lsp::Range,
++    pub children: Option<Box<[Self]>>,
++}
++
++impl From<DocumentSymbol> for ThinDocumentSymbol {
++    #[inline]
++    fn from(symbol: DocumentSymbol) -> Self {
++        Self {
++            name: symbol.name.into(),
++            kind: symbol.kind,
++            range: symbol.range,
++            children: symbol.children.map(|children| {
++                let mut vec = Vec::with_capacity(children.len());
++                vec.extend(children.into_iter().map(Self::from));
++                vec.into_boxed_slice()
++            }),
++        }
++    }
++}
++
++#[derive(Debug, Clone, Default)]
++pub struct Breadcrumbs(Vec<Crumb>);
++
++impl Breadcrumbs {
++    #[inline]
++    pub fn push(&mut self, crumb: Crumb) {
++        self.0.push(crumb);
++    }
++
++    #[inline]
++    pub fn clear(&mut self) {
++        self.0.clear();
++    }
++
++    #[inline]
++    #[must_use]
++    pub const fn is_empty(&self) -> bool {
++        self.0.is_empty()
++    }
++
++    #[inline]
++    #[must_use]
++    pub const fn depth(&self) -> usize {
++        self.0.len()
++    }
++
++    #[inline]
++    pub fn iter(&self) -> impl Iterator<Item = &Crumb> {
++        self.0.iter()
++    }
++}
++
++#[derive(Debug, Clone)]
++pub struct Crumb {
++    pub name: Box<str>,
++    pub kind: lsp::SymbolKind,
++}
++
++impl From<&ThinDocumentSymbol> for Crumb {
++    #[inline]
++    fn from(symbol: &ThinDocumentSymbol) -> Self {
++        Self {
++            name: symbol.name.clone(),
++            kind: symbol.kind,
++        }
++    }
++}
++
+ #[derive(Debug, Clone, Default)]
+ pub struct DocumentColorSwatches {
+     pub color_swatches: Vec<InlineAnnotation>,
+@@ -762,7 +848,7 @@ fn take_with<T, F>(mut_ref: &mut T, f: F)
+     *mut_ref = f(mem::take(mut_ref));
+ }
+ 
+-use helix_lsp::{lsp, Client, LanguageServerId, LanguageServerName};
++use helix_lsp::{lsp, Client, LanguageServerId, LanguageServerName, OffsetEncoding};
+ use helix_stdx::Url;
+ 
+ impl Document {
+@@ -831,6 +917,9 @@ pub fn from(
+             previous_diagnostic_ids: HashMap::new(),
+             pull_diagnostic_controller: TaskController::new(),
+             document_link_controller: TaskController::new(),
++            symbols: None,
++            document_symbols_controller: TaskController::new(),
++            breadcrumbs: HashMap::new(),
+         }
+     }
+ 
+@@ -1544,7 +1633,7 @@ pub fn update_conceals(&mut self, view: &View) {
+ 
+         let text = self.text.slice(..);
+         let len_lines = text.len_lines();
+-        let height = view.inner_height().max(1);
++        let height = view.inner_height(self).max(1);
+         let anchor = self.view_offset(view.id).anchor.min(text.len_chars());
+         let anchor_line = text.char_to_line(anchor);
+         let cursor_line = text.char_to_line(selection.primary().cursor(text));
+@@ -1734,6 +1823,10 @@ pub fn ensure_view_init(&mut self, view_id: ViewId) {
+         }
+ 
+         self.view_data_mut(view_id);
++
++        if self.config.load().breadcrumb.enable {
++            self.update_breadcrumbs_for_view(view_id);
++        }
+     }
+ 
+     /// Mark document as recent used for MRU sorting
+@@ -1741,12 +1834,13 @@ pub fn mark_as_focused(&mut self) {
+         self.focused_at = std::time::Instant::now();
+     }
+ 
+-    /// Remove a view's selection and inlay hints from this document.
++    /// Remove any views' data and state that is stored in the `Document`.
+     pub fn remove_view(&mut self, view_id: ViewId) {
+         self.selections.remove(&view_id);
+         self.view_data.remove(&view_id);
+         self.inlay_hints.remove(&view_id);
+         self.jump_labels.remove(&view_id);
++        self.breadcrumbs.remove(&view_id);
+         self.document_highlights.remove(&view_id);
+         self.document_highlight_controllers.remove(&view_id);
+         self.code_action_hints.remove(&view_id);
+@@ -2779,6 +2873,103 @@ pub fn remove_jump_labels(&mut self, view_id: ViewId) {
+         self.jump_labels.remove(&view_id);
+     }
+ 
++    #[inline(always)]
++    pub fn set_document_symbols(
++        &mut self,
++        symbols: Vec<DocumentSymbol>,
++        offset_encoding: OffsetEncoding,
++    ) {
++        self.symbols = Some(DocumentSymbolCache {
++            tree: {
++                let mut tree = Vec::with_capacity(symbols.len());
++                tree.extend(symbols.into_iter().map(ThinDocumentSymbol::from));
++                tree
++            },
++            offset_encoding,
++        });
++    }
++
++    #[inline]
++    pub fn clear_document_symbols(&mut self) {
++        self.symbols = None;
++        self.clear_breadcrumbs();
++    }
++
++    #[inline]
++    pub fn clear_breadcrumbs(&mut self) {
++        self.breadcrumbs.clear();
++    }
++
++    // For all non-hotpaths, we use this function to prevent code bloat.
++    #[inline(never)]
++    pub fn update_breadcrumbs_for_view(&mut self, view_id: ViewId) {
++        self.update_breadcrumbs_for_view_inlined(view_id);
++    }
++
++    // We want to make sure this is inlined in the hotpath (cursor position change).
++    #[inline(always)]
++    pub fn update_breadcrumbs_for_view_inlined(&mut self, view_id: ViewId) {
++        #[inline(always)]
++        const fn in_range(pos: lsp::Position, range: lsp::Range) -> bool {
++            // PERF:
++            // Line-based filtering is the most effective early exit indicator,
++            // so do first, before other evaluations; this should be friendly to
++            // the CPU branch predictor.
++            if pos.line < range.start.line || pos.line > range.end.line {
++                return false;
++            }
++
++            // Check if the cursor position is "in" the symbols "depth".
++            //
++            // In the context of breadcrumbs, this would be the difference between
++            // if the cursor is in an impl block or in an impl block and in a
++            // function of the impl block (`|` is the cursor):
++            //
++            // ```rust
++            // impl Foo {
++            //     f|n bar() {} // In `bar`: impl Foo > bar
++            //
++            //   | fn baz() {} // Not in `baz`: impl Foo
++            //
++            //     fn quux() {} | // Not in `quux`: impl Foo
++            // }
++            // ```
++            if pos.line == range.start.line && pos.character < range.start.character {
++                return false;
++            }
++            if pos.line == range.end.line && pos.character > range.end.character {
++                return false;
++            }
++
++            true
++        }
++
++        let Some(symbols) = self.symbols.as_ref() else {
++            return;
++        };
++
++        let position = self.position(view_id, symbols.offset_encoding);
++
++        let breadcrumb = {
++            let breadcrumb = self.breadcrumbs.entry(view_id).or_default();
++            breadcrumb.clear();
++            breadcrumb
++        };
++
++        let mut current = symbols.tree.as_slice();
++
++        while let Some(symbol) = current
++            .iter()
++            .find(|&symbol| in_range(position, symbol.range))
++        {
++            breadcrumb.push(Crumb::from(symbol));
++            match symbol.children.as_deref() {
++                Some(children) => current = children,
++                _ => break,
++            }
++        }
++    }
++
+     pub fn set_document_highlights(
+         &mut self,
+         view_id: ViewId,
+diff --git a/helix-view/src/editor.rs b/helix-view/src/editor.rs
+index 078fe816..3f06578e 100644
+--- a/helix-view/src/editor.rs
++++ b/helix-view/src/editor.rs
+@@ -399,6 +399,8 @@ pub struct Config {
+     pub whitespace: WhitespaceConfig,
+     /// Persistently display open buffers along the top
+     pub bufferline: BufferLine,
++    /// Persistently display breadcrumb along the top of each view, below any bufferline.
++    pub breadcrumb: BreadcrumbConfig,
+     /// Vertical indent width guides.
+     pub indent_guides: IndentGuidesConfig,
+     /// Whether to color modes with different colors. Defaults to `false`.
+@@ -545,6 +547,23 @@ pub fn code_action_hint(&self) -> bool {
+     }
+ }
+ 
++#[derive(Debug, Default, PartialEq, Eq, PartialOrd, Ord, Deserialize, Serialize, Clone, Copy)]
++#[serde(rename_all = "kebab-case")]
++pub struct BreadcrumbConfig {
++    pub enable: bool,
++    #[serde(default)]
++    pub path: BreadcrumbPathOptions,
++}
++
++#[derive(Debug, Default, PartialEq, Eq, PartialOrd, Ord, Deserialize, Serialize, Clone, Copy)]
++#[serde(rename_all = "kebab-case")]
++pub enum BreadcrumbPathOptions {
++    #[default]
++    Full,
++    File,
++    None,
++}
++
+ #[derive(Debug, Default, PartialEq, Eq, PartialOrd, Ord, Deserialize, Serialize, Clone, Copy)]
+ #[serde(rename_all = "kebab-case")]
+ pub struct BufferPickerConfig {
+@@ -1362,6 +1381,7 @@ fn default() -> Self {
+             rulers: Vec::new(),
+             whitespace: WhitespaceConfig::default(),
+             bufferline: BufferLine::default(),
++            breadcrumb: BreadcrumbConfig::default(),
+             indent_guides: IndentGuidesConfig::default(),
+             color_modes: false,
+             soft_wrap: SoftWrap {
+@@ -2086,6 +2106,7 @@ pub fn refresh_doc_language(&mut self, doc_id: DocumentId) {
+         let diagnostics = Editor::doc_diagnostics(&self.language_servers, &self.diagnostics, doc);
+         doc.replace_diagnostics(diagnostics, &[], None);
+         doc.reset_all_inlay_hints();
++        doc.clear_document_symbols();
+     }
+ 
+     /// Launch a language server for a given document
+diff --git a/helix-view/src/graphics.rs b/helix-view/src/graphics.rs
+index 880bfbd6..2d5c302e 100644
+--- a/helix-view/src/graphics.rs
++++ b/helix-view/src/graphics.rs
+@@ -206,6 +206,12 @@ pub fn clip_bottom(self, height: u16) -> Rect {
+         }
+     }
+ 
++    #[inline]
++    pub fn with_y(self, y: u16) -> Rect {
++        // new y may make area > u16::max_value, so use new()
++        Self::new(self.x, y, self.width, self.height)
++    }
++
+     pub fn with_height(self, height: u16) -> Rect {
+         // new height may make area > u16::max_value, so use new()
+         Self::new(self.x, self.y, self.width, height)
+diff --git a/helix-view/src/gutter.rs b/helix-view/src/gutter.rs
+index 8daf1bdf..cf00eaaf 100644
+--- a/helix-view/src/gutter.rs
++++ b/helix-view/src/gutter.rs
+@@ -257,9 +257,10 @@ pub fn breakpoints<'doc>(
+ 
+     let breakpoints = doc.path().and_then(|path| editor.breakpoints.get(path));
+ 
+-    let breakpoints = match breakpoints {
+-        Some(breakpoints) => breakpoints,
+-        None => return Box::new(move |_, _, _, _| None),
++    let breadcrumbs_enabled = editor.config().breadcrumb.enable;
++
++    let Some(breakpoints) = breakpoints else {
++        return Box::new(move |_, _, _, _| None);
+     };
+ 
+     Box::new(
+@@ -269,7 +270,7 @@ pub fn breakpoints<'doc>(
+             }
+             let breakpoint = breakpoints
+                 .iter()
+-                .find(|breakpoint| breakpoint.line == line)?;
++                .find(|breakpoint| breakpoint.line == line + usize::from(breadcrumbs_enabled))?;
+ 
+             let style = if breakpoint.condition.is_some() && breakpoint.log_message.is_some() {
+                 error.underline_style(UnderlineStyle::Line)
+diff --git a/helix-view/src/view.rs b/helix-view/src/view.rs
+index 337e340f..a4c05c89 100644
+--- a/helix-view/src/view.rs
++++ b/helix-view/src/view.rs
+@@ -208,11 +208,18 @@ pub fn add_to_history(&mut self, id: DocumentId) {
+     }
+ 
+     pub fn inner_area(&self, doc: &Document) -> Rect {
+-        self.area.clip_left(self.gutter_offset(doc)).clip_bottom(1) // -1 for statusline
++        self.area
++            .clip_top(self.breadcrumb_offset(doc))
++            .clip_left(self.gutter_offset(doc))
++            .clip_bottom(1) // -1 for statusline
+     }
+ 
+-    pub fn inner_height(&self) -> usize {
+-        self.area.clip_bottom(1).height.into() // -1 for statusline
++    pub fn inner_height(&self, doc: &Document) -> usize {
++        self.area
++            .clip_top(self.breadcrumb_offset(doc))
++            .clip_bottom(1) // -1 for statusline
++            .height
++            .into()
+     }
+ 
+     pub fn inner_width(&self, doc: &Document) -> u16 {
+@@ -237,7 +244,10 @@ pub fn gutter_offset(&self, doc: &Document) -> u16 {
+         }
+     }
+ 
+-    //
++    pub fn breadcrumb_offset(&self, doc: &Document) -> u16 {
++        u16::from(doc.config.load().breadcrumb.enable)
++    }
++
+     pub fn offset_coords_to_in_view(
+         &self,
+         doc: &Document,
+@@ -382,7 +392,7 @@ pub fn estimate_last_doc_line(&self, doc: &Document) -> usize {
+         let doc_text = doc.text().slice(..);
+         let line = doc_text.char_to_line(doc.view_offset(self.id).anchor.min(doc_text.len_chars()));
+         // Saturating subs to make it inclusive zero indexing.
+-        (line + self.inner_height())
++        (line + self.inner_height(doc))
+             .min(doc_text.len_lines())
+             .saturating_sub(1)
+     }

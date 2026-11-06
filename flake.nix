@@ -33,7 +33,7 @@
       cfg =
         system: mainModule:
         nixpkgs.lib.nixosSystem {
-          system = system;
+          inherit system;
 
           specialArgs = {
             inherit inputs meta lib';
