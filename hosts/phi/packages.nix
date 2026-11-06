@@ -73,5 +73,9 @@
     pkgs.fira-math
     pkgs.fira-mono
     pkgs.fira-sans
+
+    pkgs.noto-fonts
+    pkgs.noto-fonts-cjk-sans
+    pkgs.noto-fonts-color-emoji
   ];
 }
