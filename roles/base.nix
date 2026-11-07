@@ -161,13 +161,13 @@ in
       };
     in
     {
-      # Empty shared secret, used for demonstration purposes
-      "shared-secret" = { } // shared;
-
       "local-llm-api-key" = {
         owner = "goll";
       }
       // shared;
+
+      "discord-typsy-token" = shared;
+      "discord-botta-token" = shared;
     };
 
   users.mutableUsers = false;
@@ -186,10 +186,4 @@ in
   security.sudo.extraConfig = ''
     Defaults runcwd=*
   '';
-
-  # NOTE: Both roots are still shipped by the pinned cacert trust store
-  # (private keys compromised); remove once nss-cacert drops them upstream.
-  security.pki.caCertificateBlacklist = [
-    "Comodo AAA Services root"
-  ];
 }
