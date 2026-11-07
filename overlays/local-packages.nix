@@ -6,6 +6,7 @@ final: prev: {
   pawse = prev.callPackage ../packages/pawse { };
   seekey = prev.callPackage ../packages/seekey { };
   tab-reload-notify-native = prev.callPackage ../packages/tab-reload-notify-native { };
+  typst-bot = prev.callPackage ../packages/typst-bot { };
 
   gnomeExtensions = prev.gnomeExtensions // {
     # PR #170 (fix for blurry overview previews, gnome-shell#7903);

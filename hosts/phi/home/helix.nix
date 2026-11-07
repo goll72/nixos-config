@@ -134,8 +134,15 @@
 
           "ui.background" = transparent;
 
-          "ui.statusline.insert".bg = "white";
-          "ui.statusline.select".bg = "black";
+          "ui.statusline.insert" = {
+            bg = "#eeeeee";
+            fg = "#1c1c1c";
+          };
+
+          "ui.statusline.select" = {
+            bg = "#1c1c1c";
+            fg = "#eeeeee";
+          };
 
           "ui.virtual.indent-guide".fg = "gray";
         };
