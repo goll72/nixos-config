@@ -1,11 +1,4 @@
 final: prev: {
-  # thdxg's Steel-based Helix fork with selected upstream PRs applied.
-  helix-unwrapped = prev.callPackage ../packages/helix { };
-
-  helix = prev.helix.override {
-    inherit (final) helix-unwrapped;
-  };
-
   hylki = prev.callPackage ../packages/hylki { };
   ipup = prev.callPackage ../packages/ipup { };
   maki = prev.callPackage ../packages/maki { };

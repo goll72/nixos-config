@@ -43,7 +43,7 @@
       tweaks = {
         # As much as I would like to keep this enabled, the resulting
         # behavior from terminal programs is too inconsistent/fragile
-        grapheme-shaping = false;
+        grapheme-shaping = "no";
       };
     };
   };

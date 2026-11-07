@@ -78,4 +78,33 @@
     pkgs.noto-fonts-cjk-sans
     pkgs.noto-fonts-color-emoji
   ];
+
+  # Force all emoji to render with Noto Color Emoji (e.g. in foot).
+  #
+  # Fira Code ships a handful of emoji/symbol codepoints (arrows, dingbats,
+  # misc symbols, pictographs).  foot picks the first font in its fallback
+  # chain that has a glyph, so it drew those with Fira Code's monochrome glyphs
+  # instead of falling through to Noto Color Emoji.  Stripping those codepoints
+  # from Fira Code's charset lets fontconfig reach Noto Color Emoji.
+  fonts.fontconfig.localConf = ''
+    <?xml version="1.0"?>
+    <!DOCTYPE fontconfig SYSTEM "fonts.dtd">
+    <fontconfig>
+      <match target="scan">
+        <test name="family" compare="eq"><string>Fira Code</string></test>
+        <edit name="charset" mode="assign" binding="same">
+          <minus>
+            <name>charset</name>
+            <charset>
+              <range><int>0x2190</int><int>0x21ff</int></range>
+              <range><int>0x2600</int><int>0x27bf</int></range>
+              <range><int>0x2b00</int><int>0x2bff</int></range>
+              <range><int>0xfe00</int><int>0xfe0f</int></range>
+              <range><int>0x1f000</int><int>0x1faff</int></range>
+            </charset>
+          </minus>
+        </edit>
+      </match>
+    </fontconfig>
+  '';
 }

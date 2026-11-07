@@ -1,0 +1,163 @@
+diff --git a/helix-term/src/ui/editor.rs b/helix-term/src/ui/editor.rs
+index 298b3ce..7d86886 100644
+--- a/helix-term/src/ui/editor.rs
++++ b/helix-term/src/ui/editor.rs
+@@ -236,8 +236,13 @@ impl EditorView {
+                 decorations.add_decoration(line_decoration);
+             }
+ 
+-            let syntax_highlighter =
+-                Self::doc_syntax_highlighter(doc, view_offset.anchor, inner.height, &loader);
++            let syntax_highlighter = Self::doc_syntax_highlighter(
++                doc,
++                view_offset.anchor,
++                inner.height,
++                Some(&text_annotations),
++                &loader,
++            );
+             let mut overlays = Vec::new();
+ 
+             overlays.push(Self::overlay_syntax_highlights(
+@@ -256,6 +261,7 @@ impl EditorView {
+                     doc,
+                     view_offset.anchor,
+                     inner.height,
++                    Some(&text_annotations),
+                     theme,
+                     &loader,
+                 ) {
+@@ -580,14 +586,53 @@ impl EditorView {
+         text: helix_core::RopeSlice,
+         row: usize,
+         height: u16,
++        annotations: &TextAnnotations,
+     ) -> std::ops::Range<usize> {
+         // Calculate viewport byte ranges:
+         // Saturating subs to make it inclusive zero indexing.
+         let last_line = text.len_lines().saturating_sub(1);
++        let row = row.min(last_line);
++        let start = text.line_to_byte(row);
++        let end = text.line_to_byte(
++            Self::viewport_visible_last_line(text, row, height, annotations).saturating_add(1),
++        );
++
++        start..end
++    }
++
++    /// The last document line that is shown when rendering `height` visible viewport rows
++    /// starting from the (fold-visible) line `row`. Folds hide whole lines, so `height` visible
++    /// rows can span more than `height` document lines.
++    fn viewport_visible_last_line(
++        text: helix_core::RopeSlice,
++        row: usize,
++        height: u16,
++        annotations: &TextAnnotations,
++    ) -> usize {
++        let last_line = text.len_lines().saturating_sub(1);
++        // The first visible row. The anchor line is always visible, but map it defensively.
++        let mut line = annotations.visible_line(row);
++        for _ in 1..height as usize {
++            let next = annotations.next_visible_line(line).min(last_line);
++            if next <= line {
++                break;
++            }
++            line = next;
++        }
++        line
++    }
++
++    /// The original fold-free viewport byte range: `height` document lines from `row`.
++    fn viewport_byte_range_without_folds(
++        text: helix_core::RopeSlice,
++        row: usize,
++        height: u16,
++    ) -> std::ops::Range<usize> {
++        let last_line = text.len_lines().saturating_sub(1);
++        let row = row.min(last_line);
+         let last_visible_line = (row + height as usize).saturating_sub(1).min(last_line);
+-        let start = text.line_to_byte(row.min(last_line));
++        let start = text.line_to_byte(row);
+         let end = text.line_to_byte(last_visible_line + 1);
+-
+         start..end
+     }
+ 
+@@ -598,12 +643,19 @@ impl EditorView {
+         doc: &'editor Document,
+         anchor: usize,
+         height: u16,
++        annotations: Option<&TextAnnotations>,
+         loader: &'editor syntax::Loader,
+     ) -> Option<syntax::Highlighter<'editor>> {
+         let syntax = doc.syntax()?;
+         let text = doc.text().slice(..);
+         let row = text.char_to_line(anchor.min(text.len_chars()));
+-        let range = Self::viewport_byte_range(text, row, height);
++        // With folds the visible viewport can span more document lines than `height`, so the
++        // highlighter's range must account for them or lines after a fold lose their highlight.
++        let range = match annotations {
++            Some(annotations) => Self::viewport_byte_range(text, row, height, annotations),
++            // No annotations (no folds): the range is `height` document lines, as before.
++            None => Self::viewport_byte_range_without_folds(text, row, height),
++        };
+         let range = range.start as u32..range.end as u32;
+ 
+         let highlighter = syntax.highlighter(text, loader, range);
+@@ -619,7 +671,7 @@ impl EditorView {
+         let text = doc.text().slice(..);
+         let row = text.char_to_line(anchor.min(text.len_chars()));
+ 
+-        let mut range = Self::viewport_byte_range(text, row, height);
++        let mut range = Self::viewport_byte_range(text, row, height, text_annotations);
+         range = text.byte_to_char(range.start)..text.byte_to_char(range.end);
+ 
+         text_annotations.collect_overlay_highlights(range)
+@@ -629,13 +681,17 @@ impl EditorView {
+         doc: &Document,
+         anchor: usize,
+         height: u16,
++        annotations: Option<&TextAnnotations>,
+         theme: &Theme,
+         loader: &syntax::Loader,
+     ) -> Option<OverlayHighlights> {
+         let syntax = doc.syntax()?;
+         let text = doc.text().slice(..);
+         let row = text.char_to_line(anchor.min(text.len_chars()));
+-        let visible_range = Self::viewport_byte_range(text, row, height);
++        let visible_range = match annotations {
++            Some(annotations) => Self::viewport_byte_range(text, row, height, annotations),
++            None => Self::viewport_byte_range_without_folds(text, row, height),
++        };
+         let start = syntax::child_for_byte_range(
+             &syntax.tree().root_node(),
+             visible_range.start as u32..visible_range.end as u32,
+diff --git a/helix-term/src/ui/picker.rs b/helix-term/src/ui/picker.rs
+index 0c27825..091ad3a 100644
+--- a/helix-term/src/ui/picker.rs
++++ b/helix-term/src/ui/picker.rs
+@@ -1735,8 +1735,15 @@ impl<T: 'static + Send + Sync, D: 'static + Send + Sync> Picker<T, D> {
+             let loader = cx.editor.syn_loader.load();
+             let config = cx.editor.config();
+ 
+-            let syntax_highlighter =
+-                EditorView::doc_syntax_highlighter(doc, offset.anchor, area.height, &loader);
++            // Picker previews are rendered without folds, so `None` keeps the old
++            // ("height document lines") highlight range.
++            let syntax_highlighter = EditorView::doc_syntax_highlighter(
++                doc,
++                offset.anchor,
++                area.height,
++                None,
++                &loader,
++            );
+             let mut overlay_highlights = Vec::new();
+             if doc
+                 .language_config()
+@@ -1747,6 +1754,7 @@ impl<T: 'static + Send + Sync, D: 'static + Send + Sync> Picker<T, D> {
+                     doc,
+                     offset.anchor,
+                     area.height,
++                    None,
+                     &cx.editor.theme,
+                     &loader,
+                 ) {

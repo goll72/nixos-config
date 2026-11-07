@@ -1,5 +1,4 @@
 [
-  (import ./foot.nix)
-  (import ./hydroxide.nix)
-  (import ./packages.nix)
+  (import ./overrides.nix)
+  (import ./local-packages.nix)
 ]

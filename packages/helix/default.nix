@@ -6,6 +6,8 @@
   runCommand,
   installShellFiles,
   versionCheckHook,
+  lockedGrammars ? lib.importJSON ./grammars.json,
+  grammarsOverlay ? import ./grammars-overlay.nix,
 }:
 
 let
@@ -34,6 +36,11 @@ let
       ./patches/0010-12173-click-bufferline-to-switch-buffers.patch
       ./patches/0011-15573-breadcrumb-navigation.patch
       ./patches/0012-15599-accurate-grapheme-width-calculation.patch
+      ./patches/0013-16429-match-bracket-node-under-cursor.patch
+      ./patches/0014-16339-render-control-chars-safely.patch
+      ./patches/0015-scroll-hint-exclude-bufferline.patch
+      ./patches/0016-fold-highlight-range.patch
+      ./patches/0017-fold-keep-continuation.patch
     ];
   };
 in
@@ -80,6 +87,14 @@ rustPlatform.buildRustPackage (
 
     versionCheckProgram = "${placeholder "out"}/bin/hx";
     doInstallCheck = true;
+
+    # Expose the tree-sitter grammar lockfile and overlay so the overlay in
+    # `overlays/packages.nix` can hand them to nixpkgs' `helix` wrapper, which
+    # builds the grammars into the runtime (`HELIX_RUNTIME`).  This is what
+    # actually gets tree-sitter highlighting working for the fork.
+    passthru = {
+      inherit lockedGrammars grammarsOverlay;
+    };
 
     meta = {
       description = "Post-modern modal text editor (thdxg Steel fork)";

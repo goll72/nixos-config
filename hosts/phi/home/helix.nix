@@ -17,7 +17,26 @@
         };
       in
       {
-        theme = "fleet_dark_transparent";
+        theme = "fleeting";
+
+        editor = {
+          bufferline = "multiple";
+
+          breadcrumb = {
+            enable = true;
+            path = "none";
+          };
+
+          cursorline = true;
+          color-modes = true;
+
+          soft-wrap.enable = true;
+
+          indent-guides = {
+            render = true;
+            character = "▏";
+          };
+        };
 
         keys = {
           normal = shared-keybinds;
@@ -106,14 +125,39 @@
     };
 
     themes = {
-      fleet_dark_transparent =
+      fleeting =
         let
-          transparent = "none";
+          transparent = { };
         in
         {
           inherits = "fleet_dark";
+
           "ui.background" = transparent;
+
+          "ui.statusline.insert".bg = "white";
+          "ui.statusline.select".bg = "black";
+
+          "ui.virtual.indent-guide".fg = "gray";
         };
     };
   };
+
+  xdg.configFile."helix/runtime/queries/typst/conceal.scm".text = ''
+    ; Markup hidden by `editor.conceal`, for Typst.
+    ; Modeled on the fork's bundled markdown/conceal.scm.
+
+    (heading ["=" "==" "===" "====" "=====" "======"] @conceal (#set! conceal.trailing-whitespace))
+
+    ; Bold and italic: hide the `*` / `_` delimiters.
+    (strong "*" @conceal)
+    (emph "_" @conceal)
+
+    ; Raw code: inline backticks, and the fences / language tag of raw blocks.
+    (raw_span "`" @conceal)
+    (raw_blck "```" @conceal)
+    (raw_blck lang: (ident) @conceal)
+
+    ; Math: hide the surrounding `$`.
+    (math "$" @conceal)
+  '';
 }

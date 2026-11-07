@@ -1,0 +1,24 @@
+diff --git a/helix-term/src/ui/editor.rs b/helix-term/src/ui/editor.rs
+index bd3000d2..5f0929a8 100644
+--- a/helix-term/src/ui/editor.rs
++++ b/helix-term/src/ui/editor.rs
+@@ -199,7 +199,18 @@
+                 if let Some(rows) = self.rendered_views.get(&view_id).and_then(|previous| {
+                     scrolled_rows(doc, previous, &rendered, &text_annotations, theme)
+                 }) {
+-                    surface.scroll_hint(area.clip_bottom(1), inner, rows);
++                    // The "move whole rows with the terminal" fast path asks the
++                    // terminal to scroll a region across the page (DECSTBM + SU/SD).
++                    // Only do that when the region spans the whole height, i.e.
++                    // reaches the editor's top edge.  Zellij mishandles such scroll
++                    // regions when they don't start at row 0 (e.g. with a bufferline
++                    // or breadcrumb above the view) and leaves stale glyphs on the
++                    // fixed chrome rows.  With chrome above, fall back to a normal
++                    // repaint, which every terminal and multiplexer handles.
++                    let scroll_area = view.area.clip_top(view.breadcrumb_offset(doc));
++                    if scroll_area.top() == area.top() {
++                        surface.scroll_hint(scroll_area, inner, rows);
++                    }
+                 }
+             }
+             self.rendered_views.insert(view_id, rendered);

@@ -28,7 +28,11 @@
     ../../modules/wireguard.nix
   ];
 
-  nixpkgs.overlays = [ inputs.nix-firefox-addons.overlays.default ];
+  nixpkgs.overlays = [
+    inputs.nix-firefox-addons.overlays.default
+
+    (import ../../overlays/helix.nix)
+  ];
 
   sops.secrets = {
     "passwords/goll" = {

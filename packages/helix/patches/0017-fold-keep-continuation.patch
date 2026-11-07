@@ -1,0 +1,21 @@
+diff --git a/helix-core/src/fold.rs b/helix-core/src/fold.rs
+index 314519a..e28f417 100644
+--- a/helix-core/src/fold.rs
++++ b/helix-core/src/fold.rs
+@@ -95,6 +95,16 @@ pub fn tree_sitter_spans(syntax: &Syntax, text: RopeSlice, loader: &Loader) -> V
+         while last_line > first_line && is_blank(text.line(last_line)) {
+             last_line -= 1;
+         }
++        // If the node ends in the middle of its last line, the rest of that line belongs to a
++        // different construct (e.g. `} else if (...) {`, `] while (...)`, `} catch`). A fold
++        // must not swallow it, so the fold stops at the line before it: that keeps trailing
++        // closing delimiters and their continuations visible.
++        if last_line > first_line {
++            let tail = text.slice(end..text.line_to_char(last_line + 1).min(text.len_chars()));
++            if tail.chars().any(|ch| !ch.is_whitespace() && ch != '\n' && ch != '\r') {
++                last_line -= 1;
++            }
++        }
+         spans.extend(FoldSpan::new(first_line, last_line));
+     }
+ 
