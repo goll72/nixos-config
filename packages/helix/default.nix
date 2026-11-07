@@ -41,6 +41,7 @@ let
       ./patches/0015-scroll-hint-exclude-bufferline.patch
       ./patches/0016-fold-highlight-range.patch
       ./patches/0017-fold-keep-continuation.patch
+      ./patches/0018-breadcrumb-sanitize.patch
     ];
   };
 in

@@ -1,0 +1,16 @@
+diff --git a/helix-term/src/ui/editor.rs b/helix-term/src/ui/editor.rs
+index 298b3ce..1415c2e 100644
+--- a/helix-term/src/ui/editor.rs
++++ b/helix-term/src/ui/editor.rs
+@@ -1150,6 +1150,11 @@ impl EditorView {
+             style: Style,
+         ) -> u16 {
+             let remaining = viewport.right().saturating_sub(x) as usize;
++            // Symbol names from the LSP can contain a newline (e.g. a multiline nix
++            // string). Keep only the first line: writing a `\n` or `\r` to the single-row
++            // terminal surface starts a new line and garbles the view. `split` is
++            // allocation-free and handles CRLF, borrowing `content`.
++            let content = content.split(['\n', '\r']).next().unwrap_or(content);
+             surface
+                 .set_stringn(x, viewport.y, content, remaining, style)
+                 .0
