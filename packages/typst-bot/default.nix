@@ -27,15 +27,8 @@ rustPlatform.buildRustPackage (finalAttrs: {
     EOF
   '';
 
-  installPhase = ''
-    runHook preInstall
-
-    install -Dm755 target/release/bot \
-      $out/bin/bot
-    install -Dm755 target/release/worker \
-      $out/bin/worker
-
-    runHook postInstall
+  postInstall = ''
+    ln -s typst-bot "$out/bin/bot"
   '';
 
   meta = {

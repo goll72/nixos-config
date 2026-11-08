@@ -18,6 +18,7 @@
     ./hydroxide.nix
     ./knot.nix
     ./nginx.nix
+    ./typsy.nix
     ./vaultwarden.nix
 
     ../../roles/base.nix
