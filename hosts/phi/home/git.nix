@@ -39,15 +39,15 @@
 
             file-style = "white";
             file-decoration-style = "white ul";
-            file-added-label = quote "[+]";
-            file-copied-label = quote "[=]";
-            file-modified-label = quote "[*]";
-            file-removed-label = quote "[-]";
-            file-renamed-label = quote "[>]";
+            file-added-label = "[+]";
+            file-copied-label = "[=]";
+            file-modified-label = "[*]";
+            file-removed-label = "[-]";
+            file-renamed-label = "[>]";
 
             hunk-header-style = "file line-number";
-            hunk-header-decoration-style = quote "#838CAE";
-            hunk-label = quote "::";
+            hunk-header-decoration-style = "#838CAE";
+            hunk-label = "::";
 
             minus-style = "normal ${quote "#841414"}";
             minus-emph-style = "normal ${quote "#B12222"}";
@@ -57,14 +57,14 @@
             zero-style = "normal";
 
             blame-code-style = "syntax";
-            blame-format = quote "{author:<18.17} ({commit:>8}) {timestamp:^16}";
-            blame-palette = lib.concatMapStringsSep " " quote [
+            blame-format = "{author:<18.17} ({commit:>8}) {timestamp:^16}";
+            blame-palette = lib.concatStringsSep " " [
               "#181818"
               "#242424"
               "#131313"
               "#303030"
             ];
-            blame-separator-format = quote "{n:5}▒";
+            blame-separator-format = "{n:5}▒";
 
             merge-conflict-begin-symbol = "~";
             merge-conflict-end-symbol = "~";
@@ -76,7 +76,6 @@
         };
 
       diff.colorMoved = "default";
-
     };
   };
 }
