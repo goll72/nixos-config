@@ -84,6 +84,7 @@ in
     pkgs.nixfmt
     pkgs.ripgrep
     pkgs.strace
+    pkgs.s-tui
     pkgs.tree
     pkgs.waypipe
     pkgs.wireguard-tools
