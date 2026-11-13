@@ -115,6 +115,7 @@ in
     "org/gnome/shell/extensions/display-brightness-ddcutil" = {
       # 0 -> Top Bar, 1 -> System Menu
       button-location = 1;
+      ddcutil-binary-path = "${pkgs.ddcutil}/bin/ddcutil";
     };
 
     "org/gnome/shell/extensions/hibernate-power-menu" = {
