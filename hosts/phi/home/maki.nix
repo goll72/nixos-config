@@ -10,6 +10,7 @@
         theme = "system";
         scrollbar = false;
       };
+
       trust.paths = [
         "/etc/nixos"
         "~/projects/*"

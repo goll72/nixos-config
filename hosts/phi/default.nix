@@ -43,11 +43,21 @@
       owner = "ipup";
     };
 
-    "openrouter-api-key" = {
+    "wg-key" = { };
+
+    "android-app-signing-key" = {
+      format = "binary";
+      sopsFile = inputs.nixos-secrets.lib.secrets.perHost.phi.android-app-signing-key;
+
       owner = "goll";
     };
 
-    "wg-key" = { };
+    "web-extension-signing-key" = {
+      format = "binary";
+      sopsFile = inputs.nixos-secrets.lib.secrets.perHost.phi.web-extension-signing-key;
+
+      owner = "goll";
+    };
   };
 
   networking.hostName = "phi";
