@@ -7,11 +7,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1793822897,
-        "narHash": "sha256-mCJUckzXTrj4COrZUDxTaELaTAzSbjujqJhUvN0gq+Y=",
+        "lastModified": 1794593110,
+        "narHash": "sha256-8a9jHQmnYXqEekYvRZnyLgUwsGKqCozunBEs9UQ8syI=",
         "owner": "goll72",
         "repo": "acer-charger-mute",
-        "rev": "267b185de653fcabca004d8208c217fced066e9d",
+        "rev": "937d86a4f34bd6ef4c3faebceca77b80c93faa10",
         "type": "github"
       },
       "original": {
@@ -179,11 +179,11 @@
     },
     "nixos-secrets": {
       "locked": {
-        "lastModified": 1794078572,
-        "narHash": "sha256-MAzmqO7bdGo0MmYrDDgy1vi2CuGB15LPotP7aciZDBw=",
+        "lastModified": 1794605439,
+        "narHash": "sha256-lCLen/2NVPM03Apcy6bV48WSFRnz5Mqk0VRn4Mc0NQ0=",
         "ref": "refs/heads/main",
-        "rev": "6b2d02ae8a48029785fd566e245a5e4503d08072",
-        "revCount": 11,
+        "rev": "13df70602c125a8e827d629649a9c57fb3149e2e",
+        "revCount": 13,
         "type": "git",
         "url": "file:./secrets"
       },

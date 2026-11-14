@@ -11,19 +11,19 @@ creation_rules:
           - *mu
           - *phi
           - *tau
-  - path_regex: secrets/per-host/lambda\.yaml$
+  - path_regex: secrets/per-host/lambda/.*\.(yaml|enc)$
     key_groups:
       - age:
           - *lambda
-  - path_regex: secrets/per-host/mu\.yaml$
+  - path_regex: secrets/per-host/mu/.*\.(yaml|enc)$
     key_groups:
       - age:
           - *mu
-  - path_regex: secrets/per-host/phi\.yaml$
+  - path_regex: secrets/per-host/phi/.*\.(yaml|enc)$
     key_groups:
       - age:
           - *phi
-  - path_regex: secrets/per-host/tau\.yaml$
+  - path_regex: secrets/per-host/tau/.*\.(yaml|enc)$
     key_groups:
       - age:
           - *tau

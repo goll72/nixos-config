@@ -68,34 +68,64 @@ in
     MANPAGER = "${pkgs.less}/bin/less -M -R -i --use-color -Dd+R -Du+B";
   };
 
-  environment.systemPackages = [
-    pkgs.bpftrace
-    pkgs.curl
-    pkgs.e2fsprogs
-    pkgs.fd
-    pkgs.file
-    pkgs.git
-    pkgs.helix
-    pkgs.htop
-    pkgs.knot-dns
-    pkgs.mtr
-    pkgs.ncdu
-    pkgs.nixd
-    pkgs.nixfmt
-    pkgs.ripgrep
-    pkgs.strace
-    pkgs.s-tui
-    pkgs.tree
-    pkgs.waypipe
-    pkgs.wireguard-tools
-    pkgs.zellij
+  environment.systemPackages =
+    let
+      var = x: lib.toUpper (builtins.replaceStrings [ "-" ] [ "_" ] x);
 
-    pkgs.age
-    pkgs.sops
+      ai-provider-api-key-secrets = map (x: x + "-api-key") [
+        "local-llm"
+        "openrouter"
+        "cloudflare"
+        "ai-gateway"
+        "nvidia"
+      ];
 
-    pkgs.man-pages
-    pkgs.man-pages-posix
-  ];
+      extra-env-var-secrets = [
+        "cloudflare-account-id"
+      ];
+
+      maki = pkgs.writeShellScriptBin "maki" ''
+        ${lib.concatMapStringsSep "\n" (
+          x: ''${var x}="$(< ${config.sops.secrets."ai-providers/${x}".path})"; export ${var x}''
+        ) ai-provider-api-key-secrets}
+
+        ${lib.concatMapStringsSep "\n" (
+          x: ''${var x}="$(< ${config.sops.secrets.${x}.path})"; export ${var x}''
+        ) extra-env-var-secrets}
+
+        exec ${lib.getExe pkgs.maki} "$@"          
+      '';
+    in
+    [
+      pkgs.bpftrace
+      pkgs.curl
+      pkgs.e2fsprogs
+      pkgs.fd
+      pkgs.file
+      pkgs.git
+      pkgs.helix
+      pkgs.htop
+      pkgs.knot-dns
+      pkgs.mtr
+      pkgs.ncdu
+      pkgs.nixd
+      pkgs.nixfmt
+      pkgs.ripgrep
+      pkgs.strace
+      pkgs.s-tui
+      pkgs.tree
+      pkgs.waypipe
+      pkgs.wireguard-tools
+      pkgs.zellij
+
+      pkgs.age
+      pkgs.sops
+
+      pkgs.man-pages
+      pkgs.man-pages-posix
+
+      maki
+    ];
 
   services.openssh = {
     enable = true;
@@ -129,7 +159,12 @@ in
       autoload -Uz add-zsh-hook
 
       set_term_title() {
-        print -Pn '\e]0;%m:%1~%(!. (#).)\a'
+        # Adds `(>)` to the title in a devshell, `(#)` in a root shell, `(>#)` in a root devshell.
+        if [[ -v IN_NIX_SHELL ]]; then
+          print -Pn '\e]0;%m:%1~ (>%(!.#.))\a'
+        else
+          print -Pn '\e]0;%m:%1~%(!. (#).)\a'
+        fi
       }
 
       add-zsh-hook precmd set_term_title
@@ -153,19 +188,27 @@ in
   environment.pathsToLink = [ "/share/zsh" ];
 
   sops.age.keyFile = "/var/lib/sops-nix/keys.txt";
-  sops.defaultSopsFile = inputs.nixos-secrets.lib.secrets.perHost.${hostName};
+  sops.defaultSopsFile = inputs.nixos-secrets.lib.secrets.perHost.${hostName}.secrets;
 
   sops.secrets =
     let
+      main = {
+        owner = "goll";
+      };
+
       shared = {
         sopsFile = inputs.nixos-secrets.lib.secrets.shared;
       };
     in
     {
-      "local-llm-api-key" = {
-        owner = "goll";
-      }
-      // shared;
+      "ai-providers/local-llm-api-key" = main // shared;
+      "ai-providers/openrouter-api-key" = main // shared;
+      "ai-providers/cloudflare-api-key" = main // shared;
+      "ai-providers/kilo-api-key" = main // shared;
+      "ai-providers/nvidia-api-key" = main // shared;
+      "ai-providers/ai-gateway-api-key" = main // shared;
+
+      "cloudflare-account-id" = main // shared;
 
       "discord-typsy-token" = shared;
       "discord-botta-token" = shared;
