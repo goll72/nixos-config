@@ -24,16 +24,16 @@
 
 rustPlatform.buildRustPackage (finalAttrs: {
   pname = "hylki";
-  version = "1.43.2";
+  version = "1.48.1";
 
   src = fetchFromGitHub {
     owner = "hyprlab";
     repo = "hylki";
     tag = "v${finalAttrs.version}";
-    hash = "sha256-Ek48CoW64hqa2V0FRU3TvGrWF1FVSyxzhndZ3o3aP2k=";
+    hash = "sha256-AXxpxkDqaUuOzE3kWU5BZb/mtfeMEanmjh8lMLbgr7E=";
   };
 
-  cargoHash = "sha256-V/ASBtVXffdbx39JUl0qJdZH74p0kh9ZZ4cIQujqkVc=";
+  cargoHash = "sha256-F1ndqkcH/sbXQ8xTGddGyFlngUApRDaTWInOoYwSkE4=";
 
   nativeBuildInputs = [
     pkg-config
