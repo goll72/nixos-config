@@ -67,6 +67,9 @@ in
   boot.loader.systemd-boot.enable = false;
   boot.loader.efi.canTouchEfiVariables = true;
 
+  # Needed for, among other things, brightness control using ddcutil
+  hardware.i2c.enable = true;
+
   hardware.graphics = {
     enable = true;
     extraPackages = [

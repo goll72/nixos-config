@@ -90,11 +90,7 @@
   services.speechd.enable = false;
   services.pipewire.enable = true;
 
-  users.users.goll = {
-    # NOTE: Added to i2c group so we can control brightness of external monitors using DDC
-    extraGroups = [ "i2c" ];
-    hashedPasswordFile = config.sops.secrets."passwords/goll".path;
-  };
+  users.users.goll.hashedPasswordFile = config.sops.secrets."passwords/goll".path;
 
   users.avatars.goll = ../../assets/avatar/image.jpg;
 
