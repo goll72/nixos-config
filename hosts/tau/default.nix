@@ -90,4 +90,8 @@
   };
 
   system.stateVersion = "26.11";
+
+  specialisation."vertical-monitor".configuration = {
+    boot.kernelParams = [ "fbcon=rotate:1" ];
+  };
 }
