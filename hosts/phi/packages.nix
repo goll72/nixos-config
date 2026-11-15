@@ -5,6 +5,7 @@
 
 {
   environment.systemPackages = [
+    pkgs.android-tools
     pkgs.bubblewrap
     pkgs.delta
     pkgs.gh
@@ -14,6 +15,7 @@
     pkgs.nh
     pkgs.nvtopPackages.intel
     pkgs.perf
+    pkgs.pciutils
     pkgs.qrtool
     pkgs.sbctl
     pkgs.scrcpy
@@ -21,6 +23,7 @@
     pkgs.timg
     pkgs.tinymist
     pkgs.typst
+    pkgs.usbutils
     pkgs.wl-clipboard
 
     pkgs.dosbox-x

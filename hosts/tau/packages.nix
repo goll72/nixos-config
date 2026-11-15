@@ -2,8 +2,10 @@
 
 {
   environment.systemPackages = [
-    pkgs.llama-cpp-vulkan
     pkgs.amdtop
     pkgs.amdgpu_top
+    pkgs.llama-cpp-vulkan
+    pkgs.pciutils
+    pkgs.usbutils
   ];
 }
