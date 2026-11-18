@@ -24,6 +24,10 @@ let
 in
 
 {
+  imports = [
+    ../modules/zellij-prune.nix
+  ];
+
   time.timeZone = "America/Sao_Paulo";
 
   boot.tmp.cleanOnBoot = true;
@@ -126,6 +130,8 @@ in
 
       maki
     ];
+
+  services.zellij-prune.enable = true;
 
   services.openssh = {
     enable = true;

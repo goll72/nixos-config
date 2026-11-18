@@ -1,6 +1,7 @@
 {
   inputs = {
     nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
+    flake-utils.url = "github:numtide/flake-utils";
     disko.url = "github:nix-community/disko";
     disko.inputs.nixpkgs.follows = "nixpkgs";
     home-manager.url = "github:nix-community/home-manager/master";
@@ -11,8 +12,12 @@
     lanzaboote.inputs.nixpkgs.follows = "nixpkgs";
     nix-firefox-addons.url = "github:osipog/nix-firefox-addons";
     nix-firefox-addons.inputs.nixpkgs.follows = "nixpkgs";
+    nix-firefox-addons.inputs.flake-utils.follows = "flake-utils";
     acer-charger-mute.url = "github:goll72/acer-charger-mute";
     acer-charger-mute.inputs.nixpkgs.follows = "nixpkgs";
+    zellij-prune.url = "github:goll72/zellij-prune";
+    zellij-prune.inputs.nixpkgs.follows = "nixpkgs";
+    zellij-prune.inputs.flake-utils.follows = "flake-utils";
 
     # Inspiration from https://simonshine.dk/articles/managing-secrets-privately-with-sops-nix
     nixos-secrets.url = "git+file:./secrets";
