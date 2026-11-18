@@ -7,6 +7,8 @@
 }:
 
 let
+  eligibleCacheHosts = lib.filter (x: meta.binaryCache.publicKeys ? x) meta.vpnHosts;
+
   # The set of hosts that serve as binary caches, keyed by their
   # system architecture. A host serves as a cache for every other
   # host sharing the same system.
@@ -14,12 +16,12 @@ let
     lib.map (host: {
       name = host;
       value = meta.perHost.${host}.system;
-    }) meta.vpnHosts
+    }) eligibleCacheHosts
   );
 
   # Hosts that share a system with at least one other host (i.e. hosts
   # that are actually useful as a cache for someone else).
-  cacheHostsForSystem = system: lib.filter (host: cacheHostsBySystem.${host} == system) meta.vpnHosts;
+  cacheHostsForSystem = system: lib.filter (host: cacheHostsBySystem.${host} == system) eligibleCacheHosts;
 
   # The VPN address (v4) this host binds the binary cache to.
   bindAddress = lib'.toV4 "wireguard" config.networking.hostName;

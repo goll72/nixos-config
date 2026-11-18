@@ -90,6 +90,7 @@ rec {
 
     eta = {
       id = 5;
+      system = "aarch64-linux";
 
       ssh = {
         lambda = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAII6k3qVGm9dNbbTMslW24ODwkOjvvvhfv22gbybNVGy1 -";
