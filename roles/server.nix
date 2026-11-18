@@ -6,7 +6,7 @@
 }:
 
 let
-  hostname = config.networking.hostName;
+  thisHost = config.networking.hostName;
 
   domainReversed = lib.concatStringsSep "." (
     lib.lists.reverseList (lib.strings.splitString "." meta.domain)
@@ -25,7 +25,7 @@ in
 
   services.openiscsi = {
     enable = true;
-    name = "iqn.${meta.domainCreatedAt}.${domainReversed}:${hostname}";
+    name = "iqn.${meta.domainCreatedAt}.${domainReversed}:${thisHost}";
   };
 
   services.journald.settings.Journal.SystemMaxUse = "100M";

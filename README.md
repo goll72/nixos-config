@@ -12,6 +12,9 @@ nixos-install --no-channel-copy --no-root-password --flake .#phi
 
 To update an existing NixOS host, use `nixos-rebuild`.
 
+Read the files under `docs/` for more detailed documentation on how to do the
+initial setup for specific services.
+
 ## phi
 
 The following actions must be taken manually when installing from scratch:

@@ -30,6 +30,7 @@ rec {
   perHost = {
     lambda = {
       id = 1;
+      system = "aarch64-linux";
 
       publicIP = {
         v4 = "144.22.210.111";
@@ -49,6 +50,7 @@ rec {
 
     mu = {
       id = 2;
+      system = "x86_64-linux";
 
       publicIP = {
         v4 = "152.67.54.20";
@@ -62,6 +64,7 @@ rec {
 
     phi = {
       id = 3;
+      system = "x86_64-linux";
 
       ssh = {
         lambda = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIM6Qtb4gaj3NqvdWQpJD5rCnqXP2xvKrp8hMeLfw0a3k -";
@@ -74,6 +77,7 @@ rec {
 
     tau = {
       id = 4;
+      system = "x86_64-linux";
 
       ssh = {
         lambda = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIEVXj8Gjc0nSGvyncyc0m4GtOIsoBBWUN3i+RrXAjc7x -";
@@ -126,5 +130,20 @@ rec {
   local.v6 = {
     prefix = "fd00::";
     len = 64;
+  };
+
+  binaryCache = {
+    cacheName = "main";
+    port = 5000;
+
+    # Nix binary cache priority (lower = higher priority).
+    #
+    # cache.nixos.org uses 40, so we use a higher value
+    # to ensure NixOS's cache is preferred over our own.
+    priority = 50;
+
+    publicKeys = {
+      phi = "main:JJGwBQXwHhX+5KOAlS2IId3XLNRY4oFrnMDDSJxyi/g=";
+    };
   };
 }

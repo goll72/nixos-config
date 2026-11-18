@@ -156,6 +156,8 @@ in
     enable = true;
 
     interactiveShellInit = ''
+      ${builtins.readFile ../files/zsh/nix-completion.zsh}
+
       autoload -Uz add-zsh-hook
 
       set_term_title() {

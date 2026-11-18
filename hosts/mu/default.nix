@@ -17,6 +17,7 @@
     ../../roles/base.nix
     ../../roles/server.nix
 
+    ../../modules/binary-cache.nix
     ../../modules/nfs.nix
     ../../modules/wireguard.nix
   ];
@@ -25,7 +26,14 @@
 
   networking.hostName = "mu";
 
-  services.vpn.nfs.enable = true;
+  services.vpn = {
+    nfs.enable = true;
+
+    binaryCache = {
+      enable = true;
+      pull = true;
+    };
+  };
 
   # Key-only SSH auth (no passwords on this host)
   users.users.goll = { };

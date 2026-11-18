@@ -1,6 +1,3 @@
-# GNOME fonts and icon theme, shared between the GDM greeter profile
-# (desktop.nix) and the user session (home/gnome.nix) so the two can
-# never drift apart.
 {
   iconTheme = "Papirus-Dark";
 

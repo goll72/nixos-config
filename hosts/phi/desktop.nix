@@ -6,7 +6,7 @@
 
 let
   extensions = import ./extensions.nix { inherit pkgs; };
-  theme = import ./gnome-theme.nix;
+  theme = import ./theme.nix;
 in
 
 {

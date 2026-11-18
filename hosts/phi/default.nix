@@ -23,6 +23,7 @@
     ../../roles/base.nix
 
     ../../modules/avatar.nix
+    ../../modules/binary-cache.nix
     ../../modules/ipup.nix
     ../../modules/nfs.nix
     ../../modules/wireguard.nix
@@ -82,6 +83,11 @@
   services.vpn = {
     wireguard.enable = true;
     nfs.enable = true;
+
+    binaryCache = {
+      enable = true;
+      serve = true;
+    };
   };
 
   services.local-dns.enable = true;
