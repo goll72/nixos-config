@@ -21,8 +21,8 @@ in
     localsearch.enable = false;
     at-spi2-core.enable = lib.mkForce false;
 
-    gnome-remote-desktop.enable = false;
-    gnome-browser-connector.enable = false;
+    gnome-remote-desktop.enable = lib.mkForce false;
+    gnome-browser-connector.enable = lib.mkForce false;
   };
 
   i18n.inputMethod.enable = false;
