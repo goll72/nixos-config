@@ -31,7 +31,7 @@
 
   config = lib.mkIf config.services.zellij-prune.enable (
     let
-      pkg = inputs.zellij-prune.packages.${pkgs.system}.default;
+      pkg = inputs.zellij-prune.packages.${pkgs.stdenv.hostPlatform.system}.default;
     in
     {
       systemd.user.services.zellij-prune = {

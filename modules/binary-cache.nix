@@ -21,7 +21,8 @@ let
 
   # Hosts that share a system with at least one other host (i.e. hosts
   # that are actually useful as a cache for someone else).
-  cacheHostsForSystem = system: lib.filter (host: cacheHostsBySystem.${host} == system) eligibleCacheHosts;
+  cacheHostsForSystem =
+    system: lib.filter (host: cacheHostsBySystem.${host} == system) eligibleCacheHosts;
 
   # The VPN address (v4) this host binds the binary cache to.
   bindAddress = lib'.toV4 "wireguard" config.networking.hostName;
@@ -53,11 +54,8 @@ let
 
     sops.secrets."harmonia-key" = { };
 
-    # Ensure the socket is created only after the VPN is up so
-    # binding to the VPN address succeeds.
     systemd.sockets.harmonia = {
-      wants = [ "network-online.target" ];
-      after = [ "network-online.target" ];
+      socketConfig.FreeBind = true;
     };
 
     networking.firewall.interfaces.${config.services.vpn.wireguard.interface}.allowedTCPPorts = [
